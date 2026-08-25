@@ -1,0 +1,59 @@
+rules:
+  - id: java-21-required
+    patterns:
+      - 'sourceCompatibility\s*=\s*17\b'
+      - 'targetCompatibility\s*=\s*17\b'
+      - 'JavaLanguageVersion\.of\(\s*17\s*\)'
+      - 'java_version\s*[=:]\s*17\b'
+    source_versions:
+      max: "1.20.4"
+    target_versions:
+      min: "1.20.5"
+    issue: "Minecraft 1.20.5 passou a exigir Java 21; configurações legadas de Java 17 precisam ser revisadas."
+    suggestion: "Atualizar o JDK/linguagem do projeto para Java 21 e conferir dependências que exigem o novo runtime."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://www.minecraft.net/en-us/article/minecraft-java-edition-1-20-5"
+      - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
+    match_in: code
+
+  - id: neoforge-metadata-file
+    patterns:
+      - 'META-INF/mods\.toml'
+      - 'META-INF/neoforge\.mods\.toml'
+    source_versions:
+      max: "1.20.4"
+    target_versions:
+      min: "1.20.5"
+    loader:
+      - forge
+      - neoforge
+    issue: "O metadata do mod precisa usar o formato e o caminho esperados pelo loader de destino."
+    suggestion: "Revisar mods.toml/neoforge.mods.toml, seus campos de versão, dependências e loader."
+    severity: high
+    confidence: 0.90
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
+    match_in: strings
+
+  - id: item-components-transition
+    patterns:
+      - '\bItemStack\.getOrCreateTag\s*\('
+      - '\bgetTag\s*\('
+      - '\bsetTag\s*\('
+    source_versions:
+      max: "1.20.4"
+    target_versions:
+      min: "1.20.5"
+    loader:
+      - forge
+      - neoforge
+    issue: "O modelo de dados de ItemStack foi reorganizado em componentes de dados no Minecraft 1.20.5."
+    suggestion: "Revisar armazenamento NBT e migrar dados persistentes para Data Components quando a API do destino exigir."
+    severity: high
+    confidence: 0.80
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
+      - "https://www.minecraft.net/en-us/article/minecraft-java-edition-1-20-5"
+    match_in: code

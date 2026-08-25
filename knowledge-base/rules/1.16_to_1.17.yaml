@@ -1,0 +1,80 @@
+rules:
+  - id: tile-entity-to-block-entity
+    patterns:
+      - '\bTileEntity\b'
+      - '\bTileEntityType\b'
+      - '\bTileEntityProvider\b'
+      - '\bITickableTileEntity\b'
+    source_versions:
+      min: "1.16"
+      max: "1.16.5"
+    target_versions:
+      min: "1.17"
+    loader:
+      - forge
+      - neoforge
+    issue: "A nomenclatura e o contrato de entidades de bloco mudaram para BlockEntity/EntityBlock e ticker explícito."
+    suggestion: "Revisar imports, tipos, registro e o caminho de ticking conforme a API 1.17."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.17/"
+    match_in: code
+
+  - id: forge-capability-inject-to-token
+    patterns:
+      - '@CapabilityInject'
+      - '\bIStorage\b'
+    source_versions:
+      min: "1.16"
+      max: "1.16.5"
+    target_versions:
+      min: "1.17"
+    loader:
+      - forge
+      - neoforge
+    issue: "O sistema de capabilities mudou, com CapabilityToken e remoção de IStorage no caminho documentado."
+    suggestion: "Revisar a inicialização da capability e migrar serialização para a API correspondente."
+    severity: high
+    confidence: 0.85
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.17/"
+    match_in: code
+
+  - id: forge-tooltype-redesign
+    patterns:
+      - '\bToolType\b'
+      - '\bToolActions\b'
+    source_versions:
+      min: "1.16"
+      max: "1.16.5"
+    target_versions:
+      min: "1.17"
+    loader:
+      - forge
+      - neoforge
+    issue: "O sistema de ferramentas do Forge foi redesenhado na transição para 1.17."
+    suggestion: "Revisar a migração para tiers e ToolAction conforme a documentação da versão alvo."
+    severity: high
+    confidence: 0.80
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.17/"
+    match_in: code
+
+  - id: java-16-required
+    patterns:
+      - 'sourceCompatibility\s*=\s*8\b'
+      - 'targetCompatibility\s*=\s*8\b'
+      - 'java_version\s*[=:]\s*8\b'
+    source_versions:
+      min: "1.16"
+      max: "1.16.5"
+    target_versions:
+      min: "1.17"
+    issue: "Minecraft 1.17 passou a exigir Java 16 no ambiente documentado."
+    suggestion: "Revisar a versão do JDK usada pelo projeto para o destino."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.17/"
+    match_in: strings

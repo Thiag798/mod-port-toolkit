@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+reports/*.tmp
+
+# VS Code extension artifacts
+vscode-extension/node_modules/
+vscode-extension/dist/
+vscode-extension/*.vsix

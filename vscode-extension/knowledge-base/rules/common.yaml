@@ -1,0 +1,34 @@
+rules:
+  - id: commands-literal-wrapper
+    pattern: 'Commands\.literal\('
+    applies_to: "target>=1.19"
+    loader:
+      - forge
+      - neoforge
+    issue: "O uso de Commands.literal() pode falhar em determinados cenários de mapeamento/reobfuscação."
+    suggestion: "Revisar o uso direto de com.mojang.brigadier.builder.LiteralArgumentBuilder.literal()."
+    severity: medium
+    confidence: 0.60
+    references:
+      - "PLANO_FERRAMENTA_PORTE_MODS.md:32-45"
+    match_in: code
+
+  - id: model-event-change
+    patterns:
+      - '\bBakedModelWrapper\b'
+      - '\bModelBakeEvent\b'
+    source_versions:
+      min: "1.19"
+      max: "1.20.1"
+    target_versions:
+      min: "1.21"
+    loader:
+      - forge
+      - neoforge
+    issue: "O sistema de modelos e eventos de baking mudou no contexto de migração para 1.21."
+    suggestion: "Revisar a migração para ModelEvent.ModifyBakingResult conforme a API e o loader usados."
+    severity: high
+    confidence: 0.85
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: code

@@ -1,0 +1,84 @@
+rules:
+  - id: neoforge-event-result-removed
+    pattern: '\bEvent\.Result\b'
+    source_versions:
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    loader:
+      - neoforge
+    issue: "Event.Result foi removido ou reestruturado no NeoForge 21.x."
+    suggestion: "Revisar o evento e o mecanismo de cancelamento/resultado indicado pela API NeoForge do destino."
+    severity: high
+    confidence: 0.85
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/neo/"
+    match_in: code
+
+  - id: neoforge-tool-actions-to-item-abilities
+    pattern: '\bToolActions\b'
+    source_versions:
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    loader:
+      - neoforge
+    issue: "ToolActions foi renomeado para ItemAbilities no NeoForge 21.x."
+    suggestion: "Revisar imports, constantes e verificações de habilidade para ItemAbilities."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/neo/"
+    match_in: code
+
+  - id: neoforge-plant-type-replaced
+    pattern: '\bPlantType\b'
+    source_versions:
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    loader:
+      - neoforge
+    issue: "O sistema PlantType foi substituído no NeoForge 21.x."
+    suggestion: "Revisar a integração da planta usando o contrato atual do loader e os métodos de suporte do bloco."
+    severity: medium
+    confidence: 0.80
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/neo/"
+    match_in: code
+
+  - id: neoforge-networking-api-rework
+    patterns:
+      - '\bNetworkEvent\.Context\b'
+      - '\bSimpleChannel\b'
+      - '\bCustomPacketPayload\b'
+    source_versions:
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    loader:
+      - neoforge
+    issue: "A API de networking foi reestruturada entre linhas do NeoForge; o padrão encontrado pode não corresponder ao destino."
+    suggestion: "Revisar payloads, codecs, registro e fluxo de envio/recebimento na API NeoForge do destino."
+    severity: high
+    confidence: 0.75
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/neo/"
+      - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
+    match_in: code
+
+  - id: neoforge-capability-rework
+    pattern: '\bCapability\b'
+    source_versions:
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    loader:
+      - neoforge
+    issue: "O sistema de capabilities/data attachments do NeoForge passou por rework nas linhas recentes."
+    suggestion: "Revisar o armazenamento de dados e avaliar Data Attachments ou a API de capability vigente no destino."
+    severity: medium
+    confidence: 0.65
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/neo/"
+    match_in: code

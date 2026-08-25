@@ -1,0 +1,4 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+[[mods]]
+modId="example"

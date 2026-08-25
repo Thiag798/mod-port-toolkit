@@ -1,0 +1,19 @@
+rules:
+  - id: fabric-yarn-to-mojang-mappings
+    patterns:
+      - '\byarn\b'
+      - '\bintermediary\b'
+    source_versions:
+      max: "1.21.11"
+    target_versions:
+      min: "26.1"
+    loader:
+      - fabric
+    issue: "A partir de Minecraft 26.1, a documentação do Fabric orienta migrar de Yarn/Intermediary para Mojang Mappings; 26.1 usa código não obfuscado."
+    suggestion: "Revisar o canal de mappings do projeto e as referências de nomes antes de atualizar o código; a extensão apenas aponta o risco."
+    severity: high
+    confidence: 0.90
+    references:
+      - "https://docs.fabricmc.net/develop/porting/mappings/"
+      - "https://minecraft.net/en-us/article/removing-obfuscation-in-java-edition"
+    match_in: strings

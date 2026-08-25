@@ -1,0 +1,64 @@
+rules:
+  - id: flattening-block-grass
+    pattern: '\bBlocks\.GRASS\b|\bBlocks\.grass\b|"minecraft:grass"'
+    source_versions:
+      max: "1.12.2"
+    target_versions:
+      min: "1.13"
+    issue: "A Flattening separou o bloco de grama alta do bloco de gramado; o antigo grass foi associado a grass_block."
+    suggestion: "Revisar o ID e a referência de bloco, substituindo a forma antiga pela correspondente do destino."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.14/#things-in-advance"
+    match_in: both
+
+  - id: resource-folders-plural-to-singular
+    patterns:
+      - 'textures/blocks'
+      - 'textures/items'
+      - 'tags/blocks'
+      - 'tags/items'
+    source_versions:
+      max: "1.12.2"
+    target_versions:
+      min: "1.13"
+    issue: "Pastas de recursos e tags foram reorganizadas para nomes singulares no formato moderno."
+    suggestion: "Revisar caminhos de recursos e tags conforme o registry correspondente do destino."
+    severity: medium
+    confidence: 0.90
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.14/"
+    match_in: strings
+
+  - id: lang-properties-to-json
+    patterns:
+      - 'assets/[^/]+/lang/[^/]+\.lang'
+      - 'key=value'
+    source_versions:
+      max: "1.12.2"
+    target_versions:
+      min: "1.13"
+    issue: "Arquivos de idioma passaram do formato properties para um objeto JSON."
+    suggestion: "Revisar arquivos `.lang` e convertê-los para JSON de traduções."
+    severity: high
+    confidence: 0.90
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.14/"
+    match_in: both
+
+  - id: commands-brigadier
+    patterns:
+      - '\bCommandBase\b'
+      - '\bCommands\.literal\('
+    source_versions:
+      max: "1.12.2"
+    target_versions:
+      min: "1.13"
+    issue: "O sistema de comandos foi reorganizado em torno da biblioteca Brigadier."
+    suggestion: "Revisar a definição declarativa do comando usando os builders e argumentos do destino."
+    severity: high
+    confidence: 0.85
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.14/"
+    match_in: code

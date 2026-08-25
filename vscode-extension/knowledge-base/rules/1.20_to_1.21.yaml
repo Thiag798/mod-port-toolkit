@@ -1,0 +1,132 @@
+rules:
+  - id: resourcelocation-constructor-private
+    patterns:
+      - 'new\s+ResourceLocation\s*\('
+      - '\bisValidResourceLocation\s*\('
+    source_versions:
+      min: "1.20"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "ResourceLocation tornou o construtor privado e removeu isValidResourceLocation."
+    suggestion: "Revisar para ResourceLocation.parse, fromNamespaceAndPath, withDefaultNamespace ou bySeparator conforme o caso."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: code
+
+  - id: singular-resource-folders-1-21
+    patterns:
+      - 'tags/blocks'
+      - 'tags/entity_types'
+      - 'tags/fluids'
+      - 'tags/game_events'
+      - 'tags/items'
+      - 'advancements'
+      - 'recipes'
+      - 'structures'
+      - 'loot_tables'
+    source_versions:
+      min: "1.20"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "Pastas plurais de tags, recipes, advancements, structures e loot tables foram singularizadas."
+    suggestion: "Revisar o caminho para o nome singular do registry no pacote de recursos/data."
+    severity: high
+    confidence: 0.95
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: strings
+
+  - id: vertex-consumer-api-1-21
+    patterns:
+      - '\.vertex\s*\('
+      - '\.color\s*\('
+      - '\.uv\s*\('
+      - '\.overlayCoords\s*\('
+      - '\.uv2\s*\('
+      - '\.normal\s*\('
+      - '\.endVertex\s*\('
+    source_versions:
+      min: "1.20"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "A API de VertexConsumer foi remodelada; vários métodos foram renomeados e endVertex foi removido."
+    suggestion: "Revisar addVertex, setColor, setUv, setUv1/setOverlay, setUv2/setLight e setNormal."
+    severity: high
+    confidence: 0.90
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: code
+
+  - id: gui-component-to-graphics
+    patterns:
+      - '\bGuiComponent\b'
+      - 'PoseStack\s+poseStack'
+    source_versions:
+      min: "1.19"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "GuiComponent foi removido e o desenho de interfaces passou para GuiGraphics."
+    suggestion: "Revisar assinaturas e chamadas de desenho para receber GuiGraphics."
+    severity: high
+    confidence: 0.90
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.20/"
+    match_in: code
+
+  - id: recipe-input-replaces-container
+    patterns:
+      - '\bRecipe<\s*Container\s*>'
+      - '\bRecipeManager\b'
+      - '\bCraftingContainer\b'
+    source_versions:
+      min: "1.20"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "Receitas passaram a usar RecipeInput e especializações como CraftingInput/SingleRecipeInput."
+    suggestion: "Revisar generics, assinaturas e conversões de container para RecipeInput."
+    severity: medium
+    confidence: 0.85
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: code
+
+  - id: portal-info-to-dimension-transition
+    patterns:
+      - '\bPortalInfo\b'
+      - '\bchangeDimension\s*\(\s*ServerLevel\b'
+    source_versions:
+      min: "1.20"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "PortalInfo foi substituído por DimensionTransition na lógica de mudança de dimensão."
+    suggestion: "Revisar a criação e o retorno da transição usando DimensionTransition e Portal."
+    severity: high
+    confidence: 0.90
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: code
+
+  - id: record-item-to-jukebox-playable
+    patterns:
+      - '\bRecordItem\b'
+      - '\bJukeboxBlockEntity\b'
+    source_versions:
+      min: "1.20"
+      max: "1.20.6"
+    target_versions:
+      min: "1.21"
+    issue: "A reprodução de músicas de jukebox foi reorganizada em torno do componente JukeboxPlayable."
+    suggestion: "Revisar o item, componente, song registry e JukeboxSongPlayer usados pelo mod."
+    severity: medium
+    confidence: 0.80
+    references:
+      - "https://docs.neoforged.net/primer/docs/1.21/"
+    match_in: code

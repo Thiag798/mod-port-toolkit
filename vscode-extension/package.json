@@ -1,0 +1,84 @@
+{
+  "name": "mod-port-toolkit-vscode",
+  "displayName": "Mod Port Toolkit",
+  "description": "Diagnóstico estático de portabilidade de mods Minecraft por versão e loader.",
+  "version": "1.0.0",
+  "publisher": "mod-port-toolkit",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:modPortToolkit.analyze",
+    "onCommand:modPortToolkit.configure"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "modPortToolkit.analyze",
+        "title": "Mod Port Toolkit: Analisar portabilidade"
+      },
+      {
+        "command": "modPortToolkit.configure",
+        "title": "Mod Port Toolkit: Configurar versões e loaders"
+      }
+    ],
+    "configuration": {
+      "title": "Mod Port Toolkit",
+      "properties": {
+        "modPortToolkit.sourceVersion": {
+          "type": "string",
+          "description": "Versão de origem usada como padrão no diagnóstico.",
+          "default": "1.20.1"
+        },
+        "modPortToolkit.targetVersion": {
+          "type": "string",
+          "description": "Versão de destino usada como padrão no diagnóstico.",
+          "default": "1.21.1"
+        },
+        "modPortToolkit.sourceLoader": {
+          "type": "string",
+          "description": "Loader de origem usado como padrão.",
+          "enum": ["forge", "neoforge", "fabric", "quilt"],
+          "default": "forge"
+        },
+        "modPortToolkit.targetLoader": {
+          "type": "string",
+          "description": "Loader de destino usado como padrão.",
+          "enum": ["forge", "neoforge", "fabric", "quilt"],
+          "default": "neoforge"
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "modPortToolkit.analyze"
+        },
+        {
+          "command": "modPortToolkit.configure"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -p ./ --watch",
+    "test": "npm run compile && node --test test/analysis.test.js",
+    "package": "npm run compile && vsce package --no-dependencies --allow-missing-repository"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.95.0",
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.7.2",
+    "@vscode/vsce": "^3.2.2"
+  }
+}
