@@ -1,0 +1,191 @@
+name: Security audit
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-audit:
+    name: Static and authorized web security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REPORT_DIR: security-reports
+      OPENGREP_VERSION: v1.27.1
+      BANDIT_VERSION: 1.8.6
+      ZAP_TARGET_URL: ${{ vars.ZAP_TARGET_URL }}
+      ZAP_AUTHORIZED: ${{ vars.ZAP_AUTHORIZED }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare report directory
+        shell: bash
+        run: mkdir -p "$REPORT_DIR"
+
+      - name: Run Gitleaks
+        id: gitleaks
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+
+      - name: Install Bandit when Python is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -type f -name '*.py' \
+              -not -path './.git/*' \
+              -not -path './security-reports/*' \
+              -not -path './vscode-extension/node_modules/*' \
+              -print -quit | grep -q .; then
+            python -m pip install --disable-pip-version-check "bandit==${BANDIT_VERSION}"
+            echo 'bandit=applicable' >> "$GITHUB_ENV"
+          else
+            echo 'bandit=skipped' >> "$GITHUB_ENV"
+          fi
+
+      - name: Run Bandit
+        id: bandit
+        if: env.bandit == 'applicable'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          bandit -r . \
+            -f json \
+            -o "$REPORT_DIR/bandit.json" \
+            --exclude './.git,./security-reports,./vscode-extension/node_modules,./vscode-extension/dist'
+          code=$?
+          printf '%s\n' "$code" > "$REPORT_DIR/bandit.exit"
+          exit 0
+
+      - name: Record Bandit skip
+        if: env.bandit == 'skipped'
+        shell: bash
+        run: |
+          printf 'Bandit foi pulado porque não há arquivos Python.\n' > "$REPORT_DIR/bandit.status"
+          printf '0\n' > "$REPORT_DIR/bandit.exit"
+
+      - name: Install OpenGrep from pinned official release
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --location \
+            --output /tmp/opengrep-install.sh \
+            "https://raw.githubusercontent.com/opengrep/opengrep/${OPENGREP_VERSION}/install.sh"
+          bash /tmp/opengrep-install.sh -v "$OPENGREP_VERSION"
+          echo "$HOME/.opengrep/cli/latest" >> "$GITHUB_PATH"
+
+      - name: Run OpenGrep
+        id: opengrep
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          opengrep scan \
+            --config p/default \
+            --json-output "$REPORT_DIR/opengrep.json" \
+            --sarif-output "$REPORT_DIR/opengrep.sarif" \
+            .
+          code=$?
+          printf '%s\n' "$code" > "$REPORT_DIR/opengrep.exit"
+          exit 0
+
+      - name: Run OWASP ZAP Baseline only for an authorized target
+        id: zap
+        if: env.ZAP_TARGET_URL != '' && env.ZAP_AUTHORIZED == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          docker run --rm \
+            -v "$PWD/$REPORT_DIR:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "$ZAP_TARGET_URL" \
+              -J zap.json \
+              -r zap.html \
+              -w zap.md \
+              -I
+          code=$?
+          printf '%s\n' "$code" > "$REPORT_DIR/zap.exit"
+          exit 0
+
+      - name: Record ZAP skip
+        if: env.ZAP_TARGET_URL == '' || env.ZAP_AUTHORIZED != 'true'
+        shell: bash
+        run: |
+          printf 'ZAP foi pulado: configure ZAP_TARGET_URL e ZAP_AUTHORIZED=true para um alvo autorizado.\n' > "$REPORT_DIR/zap.status"
+          printf '0\n' > "$REPORT_DIR/zap.exit"
+
+      - name: Publish local reports as workflow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-reports-${{ github.run_id }}
+          path: security-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Write security summary and enforce findings gate
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          overall=0
+          {
+            echo '## Security audit'
+            echo
+            echo '| Check | Status | Exit code |'
+            echo '|---|---|---:|'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          add_result() {
+            local name="$1"
+            local exit_file="$2"
+            local status='not-run'
+            local code='-'
+            if [ -f "$exit_file" ]; then
+              code="$(cat "$exit_file")"
+              if [ "$code" = '0' ]; then status='passed-or-no-findings'; else status='findings-or-error'; overall=1; fi
+            elif [ -f "${exit_file%.exit}.status" ]; then
+              status='skipped-or-missing'
+              code='0'
+            else
+              status='not-run'
+              code='-'
+              overall=1
+            fi
+            printf '| `%s` | `%s` | `%s` |\n' "$name" "$status" "$code" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          # The action exposes its conclusion to the workflow even when findings are present.
+          if [ '${{ steps.gitleaks.outcome }}' != 'success' ]; then
+            printf '| `gitleaks` | `findings-or-error` | `action` |\n' >> "$GITHUB_STEP_SUMMARY"
+            overall=1
+          else
+            printf '| `gitleaks` | `passed-or-no-findings` | `0` |\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          add_result 'bandit' "$REPORT_DIR/bandit.exit"
+          add_result 'opengrep' "$REPORT_DIR/opengrep.exit"
+          add_result 'zap-baseline' "$REPORT_DIR/zap.exit"
+
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo 'Os relatórios detalhados estão no artefato desta execução. ZAP só roda com URL e autorização configuradas.' >> "$GITHUB_STEP_SUMMARY"
+          exit "$overall"

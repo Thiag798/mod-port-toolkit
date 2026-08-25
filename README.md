@@ -221,6 +221,14 @@ npm test
 
 A validação atual foi executada com **10 testes Python aprovados** e **3 testes do motor TypeScript aprovados**. O arquivo VSIX também foi compilado e inspecionado como arquivo instalável.
 
+## Auditoria de segurança no GitHub Actions
+
+O arquivo [`.github/workflows/security-audit.yml`](.github/workflows/security-audit.yml) executa a auditoria a cada `push` em qualquer branch e também pode ser iniciado manualmente. O workflow usa permissões mínimas de leitura, preserva os relatórios como artefatos da execução por 14 dias e grava um resumo no painel da execução.
+
+O workflow executa Gitleaks, Bandit quando há arquivos Python e OpenGrep. O OWASP ZAP Baseline fica desativado por padrão, porque precisa de uma aplicação HTTP(S) em execução e de um alvo autorizado. Para habilitá-lo, configure a variável de repositório `ZAP_TARGET_URL` com uma URL sob seu controle e a variável `ZAP_AUTHORIZED` com o valor literal `true`. Não configure terceiros ou produção sem autorização formal.
+
+O workflow fixa a versão do Bandit e do OpenGrep para tornar o resultado reproduzível. Como ferramentas externas podem atualizar regras e formatos, revise as versões antes de alterar o ambiente de CI. Um retorno não zero pode representar achados; os relatórios JSON, SARIF, HTML e Markdown devem ser revisados no artefato da execução.
+
 ## Como adicionar uma regra
 
 Uma regra nova deve ser criada no arquivo YAML correspondente ao salto, evitando alterar `common.yaml` quando a mudança for específica de uma versão ou loader. O autor deve escolher um identificador estável, registrar fonte verificável, explicar o problema, escrever uma sugestão de revisão, definir severidade e confiança e selecionar conscientemente `match_in`.

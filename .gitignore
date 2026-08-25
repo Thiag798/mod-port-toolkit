@@ -8,3 +8,6 @@ reports/*.tmp
 vscode-extension/node_modules/
 vscode-extension/dist/
 vscode-extension/*.vsix
+
+# Local and CI security reports
+security-reports/
