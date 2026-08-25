@@ -36,6 +36,25 @@ jobs:
         shell: bash
         run: mkdir -p "$REPORT_DIR"
 
+      - name: Run toolkit tests and VSIX content check
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m py_compile scanner/*.py
+          python -m unittest discover -s tests -p 'test_*.py'
+          pushd vscode-extension
+          npm ci
+          npm test
+          npm run package
+          vsix="$(ls -1 *.vsix | head -n 1)"
+          test -n "$vsix"
+          unzip -l "$vsix" | grep -q 'extension/dist/extension.js'
+          unzip -l "$vsix" | grep -q 'extension/knowledge-base/rules/common.yaml'
+          ! unzip -l "$vsix" | grep -q 'extension/src/'
+          ! unzip -l "$vsix" | grep -q 'extension/test/'
+          popd
+
       - name: Run Gitleaks
         id: gitleaks
         continue-on-error: true

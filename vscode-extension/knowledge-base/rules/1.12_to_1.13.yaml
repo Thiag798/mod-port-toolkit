@@ -12,6 +12,12 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.14/#things-in-advance"
     match_in: both
+    category: "BLOCKS"
+    breaking_change: true
+    migration_type: "registry_rename"
+    replacement_api: "Blocks.GRASS_BLOCK"
+    automatable: false
+    automation_safety: manual_review
 
   - id: resource-folders-plural-to-singular
     patterns:
@@ -30,6 +36,12 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.14/"
     match_in: strings
+    category: "RESOURCES"
+    breaking_change: true
+    migration_type: "resource_path"
+    replacement_api: "caminhos singulares de resources/data"
+    automatable: false
+    automation_safety: manual_review
 
   - id: lang-properties-to-json
     patterns:
@@ -46,6 +58,12 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.14/"
     match_in: both
+    category: "RESOURCES"
+    breaking_change: true
+    migration_type: "format_change"
+    replacement_api: "JSON de traduções"
+    automatable: false
+    automation_safety: manual_review
 
   - id: commands-brigadier
     patterns:
@@ -62,3 +80,9 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.14/"
     match_in: code
+    category: "COMMANDS"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "Brigadier builders"
+    automatable: false
+    automation_safety: manual_review

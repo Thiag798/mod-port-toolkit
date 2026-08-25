@@ -14,6 +14,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/neo/"
     match_in: code
+    category: "EVENTS"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "API de cancelamento/resultado do evento"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: neoforge-tool-actions-to-item-abilities
     pattern: '\bToolActions\b'
@@ -30,6 +37,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/neo/"
     match_in: code
+    category: "ITEMS"
+    breaking_change: true
+    migration_type: "api_rename"
+    replacement_api: "ItemAbilities"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: neoforge-plant-type-replaced
     pattern: '\bPlantType\b'
@@ -46,6 +60,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/neo/"
     match_in: code
+    category: "BLOCKS"
+    breaking_change: true
+    migration_type: "contract_change"
+    replacement_api: "contrato atual de planta"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: neoforge-networking-api-rework
     patterns:
@@ -66,6 +87,13 @@ rules:
       - "https://docs.neoforged.net/primer/docs/1.21/neo/"
       - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
     match_in: code
+    category: "NETWORKING"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "payloads/codecs do NeoForge 21"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: neoforge-capability-rework
     pattern: '\bCapability\b'
@@ -82,3 +110,10 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/neo/"
     match_in: code
+    category: "CAPABILITIES"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "Data Attachments/capability vigente"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true

@@ -1,0 +1,28 @@
+# Copie para .mod-port-toolkit.yml e ajuste ao projeto do mod.
+source:
+  minecraft: "1.20.1"
+  loader: forge
+
+target:
+  minecraft: "1.21.1"
+  loader: neoforge
+
+analysis:
+  ast: true
+  dependencies: true
+
+severity:
+  # O modo audit retorna código 1 se houver achados neste nível ou acima.
+  fail_on: high
+
+# Suppressions exigem justificativa e podem limitar-se a arquivo/linha.
+ignore:
+  # - rule: exemplo-regra
+  #   file: src/main/java/com/example/Example.java
+  #   line: 42
+  #   reason: "API mantida para compatibilidade com uma versão legada."
+# A extensão também pode gravar as mesmas entradas em .mod-port-toolkit-ignore.yml.
+
+# Opcional: extensões adicionais e diretórios que não participam da análise.
+# include_extensions: [".java", ".json", ".toml", ".properties", ".gradle", ".kts"]
+# exclude_directories: [".git", ".gradle", "node_modules", "build", "dist"]

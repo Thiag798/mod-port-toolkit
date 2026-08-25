@@ -17,6 +17,12 @@ rules:
       - "https://www.minecraft.net/en-us/article/minecraft-java-edition-1-20-5"
       - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
     match_in: code
+    category: "BUILD_CONFIG"
+    breaking_change: true
+    migration_type: "runtime_requirement"
+    replacement_api: "Java 21"
+    automatable: false
+    automation_safety: manual_review
 
   - id: neoforge-metadata-file
     patterns:
@@ -36,6 +42,12 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
     match_in: strings
+    category: "METADATA"
+    breaking_change: true
+    migration_type: "metadata_path"
+    replacement_api: "neoforge.mods.toml"
+    automatable: false
+    automation_safety: manual_review
 
   - id: item-components-transition
     patterns:
@@ -57,3 +69,10 @@ rules:
       - "https://docs.neoforged.net/primer/docs/1.20.5/neo/"
       - "https://www.minecraft.net/en-us/article/minecraft-java-edition-1-20-5"
     match_in: code
+    category: "ITEMS"
+    breaking_change: true
+    migration_type: "data_model"
+    replacement_api: "Data Components"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true

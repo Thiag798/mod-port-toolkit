@@ -12,6 +12,23 @@ rules:
     references:
       - "PLANO_FERRAMENTA_PORTE_MODS.md:32-45"
     match_in: code
+    category: COMMANDS
+    migration_type: manual_review
+    affected_packages:
+      - com.mojang.brigadier
+    affected_methods:
+      - Commands.literal
+    breaking_change: true
+    automatable: false
+    automation_safety: manual_review
+    before: "Commands.literal(\"name\")"
+    after: "LiteralArgumentBuilder.literal(\"name\")"
+    suggestion_object:
+      type: replace_method
+      old: "Commands.literal"
+      new: "LiteralArgumentBuilder.literal"
+      automatable: false
+      automation_safety: manual_review
 
   - id: model-event-change
     patterns:
@@ -31,4 +48,22 @@ rules:
     confidence: 0.85
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
+    category: RENDERING
+    migration_type: change_event
+    replacement_api: ModelEvent.ModifyBakingResult
+    affected_classes:
+      - BakedModelWrapper
+      - ModelBakeEvent
+    requires_ast: true
+    requires_dependency_check: true
+    automatable: false
+    automation_safety: manual_review
+    before: "@SubscribeEvent void onBake(ModelBakeEvent event)"
+    after: "@SubscribeEvent void onBake(ModelEvent.ModifyBakingResult event)"
+    suggestion_object:
+      type: manual_migration
+      old: "ModelBakeEvent"
+      new: "ModelEvent.ModifyBakingResult"
+      automatable: false
+      automation_safety: manual_review
     match_in: code

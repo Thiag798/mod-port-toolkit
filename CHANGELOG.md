@@ -21,3 +21,15 @@ As regras foram alimentadas por primers e páginas oficiais consultadas, com ref
 Foi adicionada a extensão `vscode-extension/`, com QuickPick para origem/destino e loaders, configurações de workspace, detecção estática de contexto, Problems panel, relatório Markdown e pacote VSIX. Ela lê a base empacotada, não altera fontes, não aplica patches, não executa comandos externos e não implementa a Fase 5 do plano.
 
 Validação da entrega: 10 testes Python passaram, 3 testes do motor TypeScript passaram e o VSIX foi empacotado com sucesso.
+
+## v1.3.0-vscode
+
+A evolução adiciona análise híbrida de estrutura Java com `javalang==0.13.0` e fallback conservador, detecção estática ampliada de Minecraft, loader, Java, mappings, Gradle/plugins e dependências, além de evidências e confiança determinísticas por achado.
+
+O workspace agora aceita `.mod-port-toolkit.yml` e `.mod-port-toolkit-ignore.yml`, percorre Java, recursos e configuração, registra suppressions com justificativa, calcula cobertura conhecida da base, gera relatório `MOD PORT REPORT` e expõe os subcomandos Python `audit`, `coverage` e `compare`. O limiar `severity.fail_on` controla o código de saída da auditoria sem impedir a gravação do relatório.
+
+O schema de regras foi enriquecido com categorias, breaking changes, tipo de migração, APIs/classes/métodos afetados, requisitos de AST/dependências, confiança, referências e sugestões estruturadas. Sugestões, before/after e preview continuam informativos: não há patch, Quick Fix de código ou transformação automática.
+
+A extensão VS Code foi atualizada para a base enriquecida e ganhou comandos de auditoria, cobertura, comparação Git somente leitura, preview de sugestões e registro explícito de suppressions. O manifesto passou a declarar filtros, análise estrutural, dependências, metadados de repositório e testes de integridade do pacote. A validação cobre 19 testes Python e 9 testes Node.
+
+A entrega continua sem build automático, execução de Gradle/Java do mod, sandbox de build, parser de erros de compilação, loop de feedback, aprendizado a partir de compilação ou aplicação automática de patches. Esses itens permanecem excluídos conforme a decisão sobre a Fase 5.

@@ -20,6 +20,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.17/"
     match_in: code
+    category: "BLOCK_ENTITIES"
+    breaking_change: true
+    migration_type: "api_rename"
+    replacement_api: "BlockEntity/EntityBlock"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: forge-capability-inject-to-token
     patterns:
@@ -40,6 +47,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.17/"
     match_in: code
+    category: "CAPABILITIES"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "CapabilityToken"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: forge-tooltype-redesign
     patterns:
@@ -60,6 +74,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.17/"
     match_in: code
+    category: "ITEMS"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "tiers e ToolAction"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: java-16-required
     patterns:
@@ -78,3 +99,9 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.17/"
     match_in: strings
+    category: "BUILD_CONFIG"
+    breaking_change: true
+    migration_type: "runtime_requirement"
+    replacement_api: "Java 16"
+    automatable: false
+    automation_safety: manual_review

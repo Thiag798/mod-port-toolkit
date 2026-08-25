@@ -1,19 +1,45 @@
 {
   "name": "mod-port-toolkit-vscode",
   "displayName": "Mod Port Toolkit",
-  "description": "Diagnóstico estático de portabilidade de mods Minecraft por versão e loader.",
-  "version": "1.0.0",
+  "description": "Diagnóstico estático e somente leitura de portabilidade de mods Minecraft por versão, loader e evidências revisáveis.",
+  "version": "1.1.0",
   "publisher": "mod-port-toolkit",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Thiag798/mod-port-toolkit.git",
+    "directory": "vscode-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/Thiag798/mod-port-toolkit/issues"
+  },
+  "homepage": "https://github.com/Thiag798/mod-port-toolkit/tree/main/vscode-extension",
+  "keywords": [
+    "minecraft",
+    "modding",
+    "forge",
+    "neoforge",
+    "fabric",
+    "quilt",
+    "porting",
+    "static-analysis",
+    "migration"
+  ],
   "engines": {
     "vscode": "^1.95.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Linters"
   ],
   "activationEvents": [
     "onCommand:modPortToolkit.analyze",
-    "onCommand:modPortToolkit.configure"
+    "onCommand:modPortToolkit.audit",
+    "onCommand:modPortToolkit.configure",
+    "onCommand:modPortToolkit.coverage",
+    "onCommand:modPortToolkit.compare",
+    "onCommand:modPortToolkit.previewSuggestion",
+    "onCommand:modPortToolkit.suppress"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -23,8 +49,28 @@
         "title": "Mod Port Toolkit: Analisar portabilidade"
       },
       {
+        "command": "modPortToolkit.audit",
+        "title": "Mod Port Toolkit: Executar auditoria"
+      },
+      {
         "command": "modPortToolkit.configure",
         "title": "Mod Port Toolkit: Configurar versões e loaders"
+      },
+      {
+        "command": "modPortToolkit.coverage",
+        "title": "Mod Port Toolkit: Ver cobertura da base"
+      },
+      {
+        "command": "modPortToolkit.compare",
+        "title": "Mod Port Toolkit: Comparar commits Git"
+      },
+      {
+        "command": "modPortToolkit.previewSuggestion",
+        "title": "Mod Port Toolkit: Visualizar sugestão sem alterar arquivos"
+      },
+      {
+        "command": "modPortToolkit.suppress",
+        "title": "Mod Port Toolkit: Registrar suppression"
       }
     ],
     "configuration": {
@@ -51,24 +97,51 @@
           "description": "Loader de destino usado como padrão.",
           "enum": ["forge", "neoforge", "fabric", "quilt"],
           "default": "neoforge"
+        },
+        "modPortToolkit.ast": {
+          "type": "boolean",
+          "description": "Usar análise estrutural Java conservadora para aumentar evidências.",
+          "default": true
+        },
+        "modPortToolkit.dependencies": {
+          "type": "boolean",
+          "description": "Detectar dependências e incluir evidências de dependências nas regras aplicáveis.",
+          "default": true
+        },
+        "modPortToolkit.minimumSeverity": {
+          "type": "string",
+          "description": "Severidade mínima exibida no painel Problems.",
+          "enum": ["info", "low", "medium", "high"],
+          "default": "info"
+        },
+        "modPortToolkit.breakingChangesOnly": {
+          "type": "boolean",
+          "description": "Exibir somente regras marcadas como breaking change.",
+          "default": false
+        },
+        "modPortToolkit.changedFilesOnly": {
+          "type": "boolean",
+          "description": "Exibir somente arquivos alterados no diff Git de trabalho.",
+          "default": false
         }
       }
     },
     "menus": {
       "commandPalette": [
-        {
-          "command": "modPortToolkit.analyze"
-        },
-        {
-          "command": "modPortToolkit.configure"
-        }
+        { "command": "modPortToolkit.analyze" },
+        { "command": "modPortToolkit.audit" },
+        { "command": "modPortToolkit.configure" },
+        { "command": "modPortToolkit.coverage" },
+        { "command": "modPortToolkit.compare" },
+        { "command": "modPortToolkit.previewSuggestion" }
       ]
     }
   },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -p ./ --watch",
-    "test": "npm run compile && node --test test/analysis.test.js",
+    "test": "npm run compile && node --test test/analysis.test.js test/manifest.test.js",
+    "test:manifest": "npm run compile && node --test test/manifest.test.js",
     "package": "npm run compile && vsce package --no-dependencies --allow-missing-repository"
   },
   "dependencies": {

@@ -6,7 +6,7 @@ Ferramenta de apoio à **migração e revisão de compatibilidade de mods do Min
 
 ## Estado do projeto
 
-A versão atual é `1.2.0-vscode`. O scanner Python e o motor TypeScript da extensão usam o mesmo contrato conceitual de regras: padrões, contexto de versão, loader, severidade, confiança editorial, referências e modo de busca. A base inicial inclui saltos históricos e recentes, mas sua cobertura é incremental e não deve ser interpretada como uma garantia de compatibilidade total.
+A versão atual é `1.3.0-vscode`. O scanner Python e o motor TypeScript da extensão usam o mesmo contrato de regras: padrões, contexto de versão, loader, severidade, categorias, confiança, evidências, referências e modo de busca. A base inclui saltos históricos e recentes, mas sua cobertura é incremental e não deve ser interpretada como uma garantia de compatibilidade total.
 
 | Componente | Estado | Objetivo |
 |---|---:|---|
@@ -15,7 +15,9 @@ A versão atual é `1.2.0-vscode`. O scanner Python e o motor TypeScript da exte
 | Detecção de contexto | Disponível | Identificar estaticamente Java, loader, mappings e algumas dependências. |
 | Extensão VS Code | Disponível | Escolher origem/destino, exibir diagnósticos e abrir relatório. |
 | Exemplos e fixtures | Disponível | Documentar casos e proteger o comportamento com testes. |
-| AST Java | Planejado | Evolução futura para análise semântica mais precisa. |
+| AST Java híbrido | Disponível | Símbolos estruturais com `javalang` e fallback conservador, sem execução do projeto. |
+| Evidências, confiança e cobertura | Disponível | Explicar a origem de cada achado e o alcance conhecido das regras aplicáveis. |
+| Configuração e suppressions | Disponível | Controlar contexto, AST/dependências e registrar exceções com justificativa. |
 | Patches automáticos | Fora do escopo atual | O projeto apenas sugere revisão; não altera fontes. |
 | Build automático e loop de compilação | **Excluído** | A Fase 5 do plano anexado não é implementada nem executada. |
 
@@ -40,8 +42,10 @@ mod-port-toolkit/
 ├── knowledge-base/
 │   └── rules/                  # Regras por salto e regras comuns
 ├── scanner/
-│   ├── scan.py                 # Scanner e relatório Markdown
+│   ├── scan.py                 # Scanner, CLI legado e subcomandos audit/coverage/compare
 │   ├── context.py              # Detecção estática de contexto
+│   ├── java_ast.py             # Parser Java híbrido somente leitura
+│   ├── project.py              # Orquestração de workspace, config e relatório
 │   └── __init__.py
 ├── vscode-extension/
 │   ├── src/
@@ -71,9 +75,11 @@ python3 -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-A base padrão é carregada da pasta `knowledge-base/rules/`. Também é possível informar um arquivo YAML individual com `--rules`, o que facilita testar uma regra isoladamente.
+A base padrão é carregada da pasta `knowledge-base/rules/`. Também é possível informar um arquivo YAML individual com `--rules`, o que facilita testar uma regra isoladamente. O parser estrutural usa `javalang==0.13.0` quando instalado e fallback regex conservador quando não estiver; nenhum processo do mod é executado.
 
 ## Uso do scanner
+
+### Modo legado Java-only
 
 A execução a partir da raiz do projeto segue este formato:
 
@@ -90,6 +96,24 @@ python3 scanner/scan.py \
 
 O parâmetro `--source` aceita um arquivo Java ou uma pasta. Quando recebe uma pasta, o scanner percorre os arquivos Java recursivamente. A opção `--detect-context` acrescenta ao relatório informações encontradas estaticamente em arquivos do projeto, sem executar processos externos.
 
+### Auditoria de workspace
+
+Para analisar código Java, recursos e arquivos de configuração em conjunto, use a configuração opcional `.mod-port-toolkit.yml` e os subcomandos de projeto:
+
+```bash
+python3 scanner/scan.py audit --project /caminho/para/o/mod \
+  --rules knowledge-base/rules \
+  --output reports/mod-port-report.md
+python3 scanner/scan.py coverage --project /caminho/para/o/mod \
+  --rules knowledge-base/rules \
+  --output reports/coverage.json
+python3 scanner/scan.py compare --project /caminho/para/o/mod \
+  --base HEAD~1 --head HEAD \
+  --output reports/git-compare.md
+```
+
+`audit` produz evidências, confiança, categorias, regras descartadas por contexto e suppressions. `coverage` informa a proporção de regras carregadas que são aplicáveis ao contexto — não a compatibilidade do mod. `compare` lista alterações Git com `diff --name-status`, sem alterar branch, índice ou arquivos. O `audit` retorna código 1 segundo `severity.fail_on` quando há achado naquele nível ou acima, mas ainda grava o relatório.
+
 | Parâmetro | Obrigatório | Descrição |
 |---|---:|---|
 | `--source` | Sim | Arquivo Java ou diretório do mod a ser analisado. |
@@ -101,9 +125,11 @@ O parâmetro `--source` aceita um arquivo Java ou uma pasta. Quando recebe uma p
 | `--output` | Não | Caminho do relatório Markdown. |
 | `--mod-name` | Não | Nome exibido no título do relatório. |
 
+Os subcomandos `audit`, `coverage` e `compare` aceitam `--project`, `--config`, `--rules`, `--output` e, quando aplicável, parâmetros de diff. Veja o contrato completo em [`docs/SCHEMA.md`](docs/SCHEMA.md).
+
 ## Extensão do VS Code
 
-A extensão fica em `vscode-extension/` e pode ser instalada pelo arquivo `mod-port-toolkit-vscode-1.0.0.vsix`. Ela não precisa ser publicada no Marketplace.
+A extensão fica em `vscode-extension/` e pode ser instalada pelo arquivo `mod-port-toolkit-vscode-1.1.0.vsix`. Ela não precisa ser publicada no Marketplace para uso local; a publicação oficial continua sendo uma etapa manual, dependente de publisher e autorização do mantenedor.
 
 Para preparar ou testar a extensão a partir do código-fonte:
 
@@ -118,7 +144,7 @@ npm run package
 O comando `npm run package` gera um VSIX local. No VS Code, abra a view **Extensions**, selecione **Views and More Actions… → Install from VSIX…** e escolha o arquivo gerado. Alternativamente, em uma instalação que disponha do comando `code`, use:
 
 ```bash
-code --install-extension mod-port-toolkit-vscode-1.0.0.vsix
+code --install-extension /caminho/completo/mod-port-toolkit-vscode-1.1.0.vsix
 ```
 
 Depois de abrir a pasta raiz do mod, execute um dos comandos na Command Palette:
@@ -126,9 +152,13 @@ Depois de abrir a pasta raiz do mod, execute um dos comandos na Command Palette:
 | Comando | Resultado |
 |---|---|
 | `Mod Port Toolkit: Analisar portabilidade` | Solicita origem, destino e loaders; analisa o workspace e publica problemas. |
+| `Mod Port Toolkit: Executar auditoria` | Analisa o workspace usando a configuração atual e grava o relatório. |
 | `Mod Port Toolkit: Configurar versões e loaders` | Salva a seleção no workspace sem executar a análise. |
+| `Mod Port Toolkit: Ver cobertura da base` | Abre `reports/coverage.json` com o alcance conhecido das regras. |
+| `Mod Port Toolkit: Comparar commits Git` | Lista status entre dois commits/branches em modo somente leitura. |
+| `Mod Port Toolkit: Visualizar sugestão sem alterar arquivos` | Mostra before/after e segurança de uma sugestão estruturada, sem editar fontes. |
 
-A lista contém versões conhecidas e a opção **Outra versão…**, que permite informar uma versão manualmente. Os diagnósticos incluem arquivo, linha, coluna, severidade, identificador da regra, confiança editorial, sugestão e referências. O relatório detalhado é salvo em `reports/`.
+A lista contém versões conhecidas e a opção **Outra versão…**, que permite informar uma versão manualmente. Os diagnósticos incluem arquivo, linha, coluna, severidade, identificador, categoria, confiança, evidências e referências. Filtros opcionais permitem severidade mínima, breaking changes e arquivos alterados. A ação de suppression exige justificativa e registra `.mod-port-toolkit-ignore.yml`; não existe Quick Fix que altere código-fonte. O relatório detalhado é salvo em `reports/`.
 
 As configurações também podem ser escritas em `.vscode/settings.json`:
 
@@ -137,7 +167,12 @@ As configurações também podem ser escritas em `.vscode/settings.json`:
   "modPortToolkit.sourceVersion": "1.20.1",
   "modPortToolkit.targetVersion": "1.21.1",
   "modPortToolkit.sourceLoader": "forge",
-  "modPortToolkit.targetLoader": "neoforge"
+  "modPortToolkit.targetLoader": "neoforge",
+  "modPortToolkit.ast": true,
+  "modPortToolkit.dependencies": true,
+  "modPortToolkit.minimumSeverity": "info",
+  "modPortToolkit.breakingChangesOnly": false,
+  "modPortToolkit.changedFilesOnly": false
 }
 ```
 
@@ -192,7 +227,16 @@ rules:
 | `severity` | `low`, `medium`, `high`, `info` | Peso visual e técnico do achado. |
 | `confidence` | Número de `0` a `1` | Confiança editorial, não probabilidade estatística. |
 | `references` | Lista | Fontes ou referências internas para revisão. |
-| `match_in` | `code`, `strings`, `both` | Região lexical em que o padrão deve ser procurado. |
+| `match_in` | `code`, `strings` ou `both` | Região lexical em que o padrão deve ser procurado. |
+| `category` | texto | Taxonomia do achado. |
+| `breaking_change` | booleano | Marca risco de quebra de contrato/API/formato. |
+| `migration_type` | texto | Tipo editorial da migração. |
+| `replacement_api` | texto | API, contrato ou formato para revisão. |
+| `affected_*` | listas de textos | Pacotes, métodos e classes relacionados. |
+| `requires_ast` | booleano | Desabilita a regra quando AST estiver desligada. |
+| `requires_dependency_check` | booleano | Controla verificação e evidência de dependências. |
+| `automatable`, `automation_safety` | booleano/texto | Governança; o padrão efetivo é revisão manual. |
+| `before`, `after`, `suggestion_object` | textos/objeto | Preview informativo sem aplicação de patch. |
 
 O modo `code` ignora comentários e literais; `strings` procura dentro de strings e ignora comentários; `both` considera as duas regiões. A preservação de quebras de linha permite apontar linha e coluna sem reescrever o arquivo.
 
@@ -206,20 +250,20 @@ A pesquisa é organizada por saltos. Isso é mais seguro do que afirmar que uma 
 
 ## Testes e validação
 
-O scanner Python possui uma suíte `unittest` que cobre parsing YAML, regras versionadas, contexto, loaders, regex, filtragem lexical, entrada inválida, recursão e integridade somente leitura:
+O scanner Python possui uma suíte `unittest` que cobre parsing YAML, regras versionadas, contexto, loaders, regex, filtragem lexical, entrada inválida, recursão, AST híbrido, configuração, suppressions, limiar `fail_on`, cobertura e integridade somente leitura:
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
-A extensão possui testes Node para carregamento da base, integração com o fixture NeoForge, detecção de Java e prevenção de falsos positivos em comentários:
+A extensão possui testes Node para carregamento da base, integração com o fixture NeoForge, detecção de Java, cobertura, prevenção de falsos positivos em comentários e integridade do manifesto/`.vscodeignore`:
 
 ```bash
 cd vscode-extension
 npm test
 ```
 
-A validação atual foi executada com **10 testes Python aprovados** e **3 testes do motor TypeScript aprovados**. O arquivo VSIX também foi compilado e inspecionado como arquivo instalável.
+A validação de desenvolvimento contém **19 testes Python aprovados** e **9 testes Node aprovados**, além de compilação TypeScript e teste de manifesto. O VSIX deve ser gerado localmente com `npm run package` e inspecionado como arquivo instalável; não há publicação automática no Marketplace.
 
 ## Auditoria de segurança no GitHub Actions
 

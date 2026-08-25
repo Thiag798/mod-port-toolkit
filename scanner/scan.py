@@ -8,12 +8,18 @@ Ele nunca altera o código-fonte nem executa processos externos.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+try:
+    from scanner.java_ast import JavaStructure, parse_java, structure_matches
+except ModuleNotFoundError:  # execução direta: python scanner/scan.py
+    from java_ast import JavaStructure, parse_java, structure_matches
 
 try:
     from scanner.context import ProjectContext, detect_context
@@ -49,6 +55,22 @@ class VersionRange:
 
 
 @dataclass(frozen=True)
+class Suggestion:
+    suggestion_type: str
+    old: str | None
+    new: str | None
+    automatable: bool
+    automation_safety: str
+
+
+@dataclass(frozen=True)
+class Evidence:
+    kind: str
+    description: str
+    weight: float
+
+
+@dataclass(frozen=True)
 class Rule:
     rule_id: str
     patterns: tuple[str, ...]
@@ -62,6 +84,24 @@ class Rule:
     source_versions: VersionRange | None
     target_versions: VersionRange | None
     match_in: str
+    category: str
+    breaking_change: bool
+    migration_type: str | None
+    replacement_api: str | None
+    affected_packages: tuple[str, ...]
+    affected_methods: tuple[str, ...]
+    affected_classes: tuple[str, ...]
+    false_positive_patterns: tuple[str, ...]
+    requires_ast: bool
+    requires_dependency_check: bool
+    automatable: bool
+    automation_safety: str
+    introduced_in: str | None
+    removed_in: str | None
+    deprecated_in: str | None
+    before: str | None
+    after: str | None
+    suggestion_object: Suggestion | None
 
 
 @dataclass(frozen=True)
@@ -73,6 +113,11 @@ class Finding:
     matched_text: str
     pattern: str
     rule: Rule
+    evidences: tuple[Evidence, ...] = ()
+    detection_confidence: float = 0.0
+    overall_confidence: float = 0.0
+    suggestion_object: Suggestion | None = None
+    structure: JavaStructure | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +131,7 @@ class ScanResult:
     findings: tuple[Finding, ...]
     files_seen: int
     skipped_rules: tuple[SkippedRule, ...]
+    structures: tuple[JavaStructure, ...] = ()
 
 
 def _as_string(value: Any, field: str, *, required: bool = False) -> str | None:
@@ -173,6 +219,31 @@ def _parse_legacy_conditions(expression: str) -> tuple[tuple[str, str, str], ...
     return tuple(conditions)
 
 
+def _as_bool(value: Any, field: str, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ToolkitError(f"O campo '{field}' deve ser booleano.")
+    return value
+
+
+def _parse_suggestion(data: Any, rule_id: str) -> Suggestion | None:
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise ToolkitError(f"A sugestão da regra '{rule_id}' deve ser um objeto.")
+    allowed = {"type", "old", "new", "automatable", "automation_safety"}
+    unknown = set(data) - allowed
+    if unknown:
+        raise ToolkitError(f"Campos desconhecidos na sugestão '{rule_id}': {', '.join(sorted(unknown))}.")
+    suggestion_type = _as_string(data.get("type"), f"rules.{rule_id}.suggestion.type", required=True)
+    old = _as_string(data.get("old"), f"rules.{rule_id}.suggestion.old")
+    new = _as_string(data.get("new"), f"rules.{rule_id}.suggestion.new")
+    automatable = _as_bool(data.get("automatable"), f"rules.{rule_id}.suggestion.automatable")
+    automation_safety = _as_string(data.get("automation_safety"), f"rules.{rule_id}.suggestion.automation_safety") or "manual_review"
+    return Suggestion(suggestion_type, old, new, automatable, automation_safety)
+
+
 def _rule_from_mapping(data: Any, index: int) -> Rule:
     if not isinstance(data, dict):
         raise ToolkitError(f"A regra #{index} deve ser um objeto YAML.")
@@ -209,11 +280,32 @@ def _rule_from_mapping(data: Any, index: int) -> Rule:
     references = _as_string_tuple(data.get("references"), f"rules[{index}].references")
     source_versions = _parse_version_range(data.get("source_versions"), f"rules[{index}].source_versions")
     target_versions = _parse_version_range(data.get("target_versions"), f"rules[{index}].target_versions")
+    category = (_as_string(data.get("category"), f"rules[{index}].category") or "uncategorized").upper()
+    breaking_change = _as_bool(data.get("breaking_change"), f"rules[{index}].breaking_change")
+    migration_type = _as_string(data.get("migration_type"), f"rules[{index}].migration_type")
+    replacement_api = _as_string(data.get("replacement_api"), f"rules[{index}].replacement_api")
+    affected_packages = _as_string_tuple(data.get("affected_packages"), f"rules[{index}].affected_packages")
+    affected_methods = _as_string_tuple(data.get("affected_methods"), f"rules[{index}].affected_methods")
+    affected_classes = _as_string_tuple(data.get("affected_classes"), f"rules[{index}].affected_classes")
+    false_positive_patterns = _as_string_tuple(data.get("false_positive_patterns"), f"rules[{index}].false_positive_patterns")
+    requires_ast = _as_bool(data.get("requires_ast"), f"rules[{index}].requires_ast")
+    requires_dependency_check = _as_bool(data.get("requires_dependency_check"), f"rules[{index}].requires_dependency_check")
+    automatable = _as_bool(data.get("automatable"), f"rules[{index}].automatable")
+    automation_safety = _as_string(data.get("automation_safety"), f"rules[{index}].automation_safety") or "manual_review"
+    introduced_in = _as_string(data.get("introduced_in"), f"rules[{index}].introduced_in")
+    removed_in = _as_string(data.get("removed_in"), f"rules[{index}].removed_in")
+    deprecated_in = _as_string(data.get("deprecated_in"), f"rules[{index}].deprecated_in")
+    before = _as_string(data.get("before"), f"rules[{index}].before")
+    after = _as_string(data.get("after"), f"rules[{index}].after")
+    suggestion_object = _parse_suggestion(data.get("suggestion_object", data.get("transformation")), rule_id)
 
     allowed = {
         "id", "pattern", "patterns", "issue", "suggestion", "severity", "applies_to",
         "confidence", "match_in", "loader", "loaders", "references", "source_versions",
-        "target_versions",
+        "target_versions", "category", "breaking_change", "migration_type", "replacement_api", "affected_packages",
+        "affected_methods", "affected_classes", "false_positive_patterns", "requires_ast",
+        "requires_dependency_check", "automatable", "automation_safety", "introduced_in",
+        "removed_in", "deprecated_in", "before", "after", "suggestion_object", "transformation",
     }
     unknown = set(data) - allowed
     if unknown:
@@ -232,6 +324,24 @@ def _rule_from_mapping(data: Any, index: int) -> Rule:
         source_versions=source_versions,
         target_versions=target_versions,
         match_in=match_in,
+        category=category,
+        breaking_change=breaking_change,
+        migration_type=migration_type,
+        replacement_api=replacement_api,
+        affected_packages=affected_packages,
+        affected_methods=affected_methods,
+        affected_classes=affected_classes,
+        false_positive_patterns=false_positive_patterns,
+        requires_ast=requires_ast,
+        requires_dependency_check=requires_dependency_check,
+        automatable=automatable,
+        automation_safety=automation_safety,
+        introduced_in=introduced_in,
+        removed_in=removed_in,
+        deprecated_in=deprecated_in,
+        before=before,
+        after=after,
+        suggestion_object=suggestion_object,
     )
 
 
@@ -443,6 +553,49 @@ def _display_path(path: Path, source: Path) -> str:
     return path.as_posix()
 
 
+def _evidence_for_finding(
+    rule: Rule,
+    pattern: str,
+    matched_text: str,
+    line_text: str,
+    structure: JavaStructure | None,
+    project_context: ProjectContext | None = None,
+    dependencies_enabled: bool = True,
+) -> tuple[tuple[Evidence, ...], float]:
+    evidences: list[Evidence] = [Evidence("lexical", f"Padrão '{pattern}' encontrado no conteúdo analisado.", 0.35)]
+    detection = 0.35
+    if structure is not None:
+        structural = structure_matches(structure, pattern)
+        if structural:
+            symbol = structural[0]
+            evidences.append(Evidence("ast", f"Símbolo estrutural '{symbol.name}' confirmado pelo parser {structure.parser}.", 0.30))
+            detection += 0.30
+        elif rule.requires_ast:
+            evidences.append(Evidence("ast", f"Nenhum símbolo estrutural correspondente foi confirmado; parser {structure.parser}.", -0.15))
+            detection -= 0.15
+        if structure.partial:
+            evidences.append(Evidence("ast", "A estrutura Java foi obtida por fallback conservador; a evidência é parcial.", -0.10))
+            detection -= 0.10
+    if rule.requires_dependency_check:
+        if not dependencies_enabled:
+            evidences.append(Evidence("dependency", "A verificação de dependências foi desabilitada na configuração.", -0.20))
+            detection -= 0.20
+        elif project_context is not None and project_context.dependencies:
+            evidences.append(Evidence("dependency", f"Dependência(s) detectada(s): {', '.join(project_context.dependencies)}.", 0.10))
+            detection += 0.10
+        else:
+            evidences.append(Evidence("dependency", "Nenhuma dependência conhecida foi detectada; a ocorrência exige revisão humana.", -0.05))
+            detection -= 0.05
+    if rule.references:
+        evidences.append(Evidence("reference", f"Regra documentada por {len(rule.references)} referência(s).", 0.10))
+        detection += 0.10
+    if line_text.strip() == line_text and line_text.strip():
+        evidences.append(Evidence("source", "Ocorrência localizada em uma linha de código não vazia.", 0.05))
+        detection += 0.05
+    detection = max(0.0, min(1.0, detection))
+    return tuple(evidences), detection
+
+
 def scan(
     source: Path,
     rules: list[Rule],
@@ -450,6 +603,9 @@ def scan(
     source_version: str | None,
     target_version: str,
     loader: str | None,
+    analyze_ast: bool = True,
+    dependencies_enabled: bool = True,
+    project_context: ProjectContext | None = None,
 ) -> ScanResult:
     """Varre as fontes aplicáveis e retorna achados sem tocar nos arquivos."""
     if source_version:
@@ -460,6 +616,10 @@ def scan(
     skipped: list[SkippedRule] = []
     for rule in rules:
         applies, reason = _rule_context(rule, source_version, target_version, loader)
+        if applies and rule.requires_ast and not analyze_ast:
+            applies, reason = False, "análise AST desabilitada"
+        if applies and rule.requires_dependency_check and not dependencies_enabled:
+            applies, reason = False, "verificação de dependências desabilitada"
         if applies:
             applicable.append(rule)
         else:
@@ -474,6 +634,7 @@ def scan(
                 raise ToolkitError(f"Regex inválida na regra '{rule.rule_id}': {exc}") from exc
 
     findings: list[Finding] = []
+    structures: list[JavaStructure] = []
     for path in paths:
         try:
             text = path.read_text(encoding="utf-8")
@@ -482,6 +643,9 @@ def scan(
         except OSError as exc:
             raise ToolkitError(f"Não foi possível ler '{path}': {exc}") from exc
 
+        structure = parse_java(path, text) if analyze_ast else None
+        if structure is not None:
+            structures.append(structure)
         views = {mode: _lexical_view(text, mode) for mode in {rule.match_in for rule in applicable}}
         lines = text.splitlines()
         seen: set[tuple[str, int, int, str]] = set()
@@ -494,6 +658,18 @@ def scan(
                 column = start - line_start + 1
                 line_text = lines[line_number - 1].strip() if line_number <= len(lines) else ""
                 matched_text = match.group(0)
+                if any(re.search(false_positive, line_text) for false_positive in rule.false_positive_patterns):
+                    continue
+                evidences, detection_confidence = _evidence_for_finding(
+                    rule,
+                    pattern,
+                    matched_text,
+                    line_text,
+                    structure if path.suffix.casefold() == ".java" else None,
+                    project_context,
+                    dependencies_enabled,
+                )
+                overall_confidence = max(0.0, min(1.0, (rule.confidence if rule.confidence is not None else 0.5) * 0.55 + detection_confidence * 0.45))
                 key = (rule.rule_id, line_number, column, matched_text)
                 if key in seen:
                     continue
@@ -507,11 +683,16 @@ def scan(
                         matched_text=matched_text,
                         pattern=pattern,
                         rule=rule,
+                        evidences=evidences,
+                        detection_confidence=detection_confidence,
+                        overall_confidence=overall_confidence,
+                        suggestion_object=rule.suggestion_object,
+                        structure=structure if path.suffix.casefold() == ".java" else None,
                     )
                 )
 
     findings.sort(key=lambda item: (str(item.path), item.line_number, item.column, item.rule.rule_id))
-    return ScanResult(tuple(findings), len(paths), tuple(skipped))
+    return ScanResult(tuple(findings), len(paths), tuple(skipped), tuple(structures))
 
 
 def _confidence_text(confidence: float | None) -> str:
@@ -636,7 +817,69 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+SEVERITY_RANK = {"info": 0, "low": 1, "medium": 2, "high": 3}
+
+
+def _fails_threshold(result: Any, fail_on: str) -> bool:
+    threshold = SEVERITY_RANK[fail_on]
+    return any(SEVERITY_RANK.get(item.rule.severity.casefold(), -1) >= threshold for item in result.findings)
+
+
+def _project_cli(argv: list[str]) -> int:
+    try:
+        from scanner.project import coverage_report, git_compare, load_project_config, render_workspace_report, scan_workspace
+    except ModuleNotFoundError:  # execução direta: python scanner/scan.py audit
+        from project import coverage_report, git_compare, load_project_config, render_workspace_report, scan_workspace
+
+    command = argv[0]
+    parser = argparse.ArgumentParser(prog=f"mod-port-toolkit {command}")
+    parser.add_argument("--project", type=Path, default=Path("."), help="Raiz do projeto do mod.")
+    parser.add_argument("--config", type=Path, help="Arquivo .mod-port-toolkit.yml alternativo.")
+    parser.add_argument("--rules", type=Path, help="Base de regras alternativa.")
+    parser.add_argument("--output", type=Path, help="Relatório Markdown ou JSON.")
+    parser.add_argument("--git-range", help="Intervalo Git para listar arquivos alterados, por exemplo HEAD~1..HEAD.")
+    parser.add_argument("--base", help="Commit/branch base para compare.")
+    parser.add_argument("--head", help="Commit/branch final para compare.")
+    args = parser.parse_args(argv[1:])
+    root = args.project.resolve()
+    if command == "compare":
+        if not args.base or not args.head:
+            raise ToolkitError("compare exige --base e --head.")
+        changes = git_compare(root, args.base, args.head)
+        lines = [f"# Comparação Git — {root.name}", "", f"- **Base:** `{args.base}`", f"- **Head:** `{args.head}`", "", "| Status | Arquivo |", "|---|---|"]
+        lines.extend(f"| `{status}` | `{path}` |" for status, path in changes)
+        report = "\n".join(lines) + "\n"
+        output = args.output or root / "reports" / "git-compare.md"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report, encoding="utf-8")
+        print(f"Comparação concluída: {len(changes)} arquivo(s). Relatório: {output}")
+        return 0
+
+    config = load_project_config(root, args.config)
+    result = scan_workspace(root, config, args.rules, args.git_range)
+    if command == "coverage":
+        report = json.dumps(coverage_report(result), ensure_ascii=False, indent=2) + "\n"
+        output = args.output or root / "reports" / "coverage.json"
+    else:
+        report = render_workspace_report(root, result)
+        output = args.output or root / "reports" / "mod-port-report.md"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(report, encoding="utf-8")
+    print(f"{command.capitalize()} concluído: {result.files_seen} arquivo(s), {len(result.findings)} ocorrência(s). Relatório: {output}")
+    if command == "audit" and _fails_threshold(result, config.fail_on):
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] in {"audit", "coverage", "compare"}:
+        try:
+            return _project_cli(argv)
+        except ToolkitError as exc:
+            print(f"Erro: {exc}", file=sys.stderr)
+            return 2
     try:
         args = parse_args(argv)
         source = args.source

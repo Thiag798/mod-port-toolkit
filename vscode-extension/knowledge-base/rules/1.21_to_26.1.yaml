@@ -17,3 +17,9 @@ rules:
       - "https://docs.fabricmc.net/develop/porting/mappings/"
       - "https://minecraft.net/en-us/article/removing-obfuscation-in-java-edition"
     match_in: strings
+    category: "MAPPINGS"
+    breaking_change: true
+    migration_type: "mapping_change"
+    replacement_api: "Mojang Mappings"
+    automatable: false
+    automation_safety: manual_review

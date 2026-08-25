@@ -15,6 +15,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
     match_in: code
+    category: "IDENTIFIERS"
+    breaking_change: true
+    migration_type: "api_visibility"
+    replacement_api: "ResourceLocation.parse/fromNamespaceAndPath"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: singular-resource-folders-1-21
     patterns:
@@ -39,6 +46,12 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
     match_in: strings
+    category: "RESOURCES"
+    breaking_change: true
+    migration_type: "resource_path"
+    replacement_api: "caminhos singulares de resources/data"
+    automatable: false
+    automation_safety: manual_review
 
   - id: vertex-consumer-api-1-21
     patterns:
@@ -61,6 +74,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
     match_in: code
+    category: "RENDERING"
+    breaking_change: true
+    migration_type: "api_redesign"
+    replacement_api: "VertexConsumer.addVertex/setColor/setUv"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: gui-component-to-graphics
     patterns:
@@ -78,6 +98,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.20/"
     match_in: code
+    category: "GUI"
+    breaking_change: true
+    migration_type: "api_rename"
+    replacement_api: "GuiGraphics"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: recipe-input-replaces-container
     patterns:
@@ -96,6 +123,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
     match_in: code
+    category: "RECIPES"
+    breaking_change: true
+    migration_type: "type_change"
+    replacement_api: "RecipeInput"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: portal-info-to-dimension-transition
     patterns:
@@ -113,6 +147,13 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
     match_in: code
+    category: "DIMENSIONS"
+    breaking_change: true
+    migration_type: "type_change"
+    replacement_api: "DimensionTransition"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
 
   - id: record-item-to-jukebox-playable
     patterns:
@@ -130,3 +171,10 @@ rules:
     references:
       - "https://docs.neoforged.net/primer/docs/1.21/"
     match_in: code
+    category: "ITEMS"
+    breaking_change: true
+    migration_type: "data_model"
+    replacement_api: "JukeboxPlayable"
+    automatable: false
+    automation_safety: manual_review
+    requires_ast: true
