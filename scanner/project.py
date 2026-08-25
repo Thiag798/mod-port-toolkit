@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404 - usado somente para consultas Git sem shell
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -382,20 +383,26 @@ def scan_workspace(root: Path, config: ProjectConfig | None = None, rules_path: 
 
 
 def git_changed_files(root: Path, revision_range: str | None = None) -> tuple[str, ...]:
-    command = ["git", "-C", str(root), "diff", "--name-only"]
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        return ()
+    command = [git_executable, "-C", str(root), "diff", "--name-only"]
     if revision_range:
         command.append(revision_range)
     try:
-        completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)
+        completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)  # nosec B603 - argumentos não passam por shell e a operação é diff somente leitura
     except (OSError, subprocess.SubprocessError, subprocess.CalledProcessError):
         return ()
     return tuple(item for item in completed.stdout.splitlines() if item.strip())
 
 
 def git_compare(root: Path, base: str, head: str) -> tuple[tuple[str, str], ...]:
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        raise ToolkitError("Executável Git não encontrado; compare exige um repositório Git local.")
     try:
-        completed = subprocess.run(
-            ["git", "-C", str(root), "diff", "--name-status", f"{base}..{head}"],
+        completed = subprocess.run(  # nosec B603 - argumentos não passam por shell e a operação é diff somente leitura
+            [git_executable, "-C", str(root), "diff", "--name-status", f"{base}..{head}"],
             check=True,
             capture_output=True,
             text=True,

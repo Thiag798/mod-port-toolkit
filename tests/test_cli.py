@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec B404 - testes de integração invocam somente o scanner local
 import sys
 import tempfile
 import unittest
@@ -27,7 +27,7 @@ class ProjectCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "audit.md"
             config = self._config(Path(directory))
-            completed = subprocess.run(
+            completed = subprocess.run(  # nosec B603 - executa o scanner local sem shell
                 [sys.executable, str(ROOT / "scanner" / "scan.py"), "audit", "--project", str(FIXTURE), "--config", str(config), "--rules", str(RULES), "--output", str(output)],
                 cwd=ROOT,
                 capture_output=True,
@@ -42,7 +42,7 @@ class ProjectCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "coverage.json"
             config = self._config(Path(directory))
-            completed = subprocess.run(
+            completed = subprocess.run(  # nosec B603 - executa o scanner local sem shell
                 [sys.executable, str(ROOT / "scanner" / "scan.py"), "coverage", "--project", str(FIXTURE), "--config", str(config), "--rules", str(RULES), "--output", str(output)],
                 cwd=ROOT,
                 capture_output=True,
