@@ -89,13 +89,23 @@
         "modPortToolkit.sourceLoader": {
           "type": "string",
           "description": "Loader de origem usado como padrão.",
-          "enum": ["forge", "neoforge", "fabric", "quilt"],
+          "enum": [
+            "forge",
+            "neoforge",
+            "fabric",
+            "quilt"
+          ],
           "default": "forge"
         },
         "modPortToolkit.targetLoader": {
           "type": "string",
           "description": "Loader de destino usado como padrão.",
-          "enum": ["forge", "neoforge", "fabric", "quilt"],
+          "enum": [
+            "forge",
+            "neoforge",
+            "fabric",
+            "quilt"
+          ],
           "default": "neoforge"
         },
         "modPortToolkit.ast": {
@@ -111,7 +121,12 @@
         "modPortToolkit.minimumSeverity": {
           "type": "string",
           "description": "Severidade mínima exibida no painel Problems.",
-          "enum": ["info", "low", "medium", "high"],
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high"
+          ],
           "default": "info"
         },
         "modPortToolkit.breakingChangesOnly": {
@@ -128,12 +143,24 @@
     },
     "menus": {
       "commandPalette": [
-        { "command": "modPortToolkit.analyze" },
-        { "command": "modPortToolkit.audit" },
-        { "command": "modPortToolkit.configure" },
-        { "command": "modPortToolkit.coverage" },
-        { "command": "modPortToolkit.compare" },
-        { "command": "modPortToolkit.previewSuggestion" }
+        {
+          "command": "modPortToolkit.analyze"
+        },
+        {
+          "command": "modPortToolkit.audit"
+        },
+        {
+          "command": "modPortToolkit.configure"
+        },
+        {
+          "command": "modPortToolkit.coverage"
+        },
+        {
+          "command": "modPortToolkit.compare"
+        },
+        {
+          "command": "modPortToolkit.previewSuggestion"
+        }
       ]
     }
   },
@@ -145,13 +172,13 @@
     "package": "npm run compile && vsce package --no-dependencies --allow-missing-repository"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.3.2"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.95.0",
-    "@types/js-yaml": "^4.0.9",
-    "typescript": "^5.7.2",
-    "@vscode/vsce": "^3.2.2"
+    "@vscode/vsce": "^3.2.2",
+    "typescript": "^5.7.2"
   }
 }

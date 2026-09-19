@@ -8,6 +8,8 @@ A validação de configuração da extensão passou a rejeitar campos desconheci
 
 Não foram adicionados Gradle, execução de builds, aplicação de patches ou qualquer mecanismo da Fase 5.
 
+Após a auditoria de dependências, `js-yaml` foi atualizado para a faixa corrigida `^4.1.1`, removendo a vulnerabilidade alta direta identificada pelo `npm audit`. Permanece uma vulnerabilidade moderada transitiva em `qs`, dependência de ferramenta de desenvolvimento, aguardando atualização compatível do ecossistema.
+
 ## v1.1-corrigido
 
 A versão corrigida substitui o parser YAML manual por `PyYAML` com validação de schema, aceita regras aninhadas e listas, rejeita campos desconhecidos e IDs duplicados e valida expressões regulares antes da varredura.
