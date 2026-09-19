@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess  # nosec B404 - usado somente para consultas Git sem shell
+from functools import lru_cache
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -50,6 +51,26 @@ TEXT_EXTENSIONS = {
     ".java", ".json", ".toml", ".properties", ".gradle", ".kts", ".yaml", ".yml", ".mcmeta", ".txt",
 }
 IGNORED_DIRECTORIES = {".git", ".gradle", "node_modules", "build", "out", "bin", "dist", ".security-audit", "reports"}
+
+
+@lru_cache(maxsize=512)
+def _compiled_regex(pattern: str) -> re.Pattern[str]:
+    """Compila padrões uma vez por processo, mantendo a análise somente leitura."""
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        raise ToolkitError(f"Regex inválida na regra: {exc}") from exc
+
+
+def _line_offsets(text: str) -> list[int]:
+    """Retorna offsets de início de linha para localizar achados em O(log n)."""
+    return [0, *[index + 1 for index, char in enumerate(text) if char == "\n"]]
+
+
+def _position(offsets: list[int], offset: int) -> tuple[int, int]:
+    import bisect
+    line_index = bisect.bisect_right(offsets, offset) - 1
+    return line_index + 1, offset - offsets[line_index] + 1
 
 
 @dataclass(frozen=True)
@@ -257,22 +278,22 @@ def _text_findings(
 ) -> tuple[Finding, ...]:
     findings: list[Finding] = []
     lines = text.splitlines()
+    offsets = _line_offsets(text)
+    lexical_views: dict[str, str] = {}
     for rule in rules:
         if path.suffix.casefold() == ".java" and rule.match_in == "code":
             continue
-        view = _lexical_view(text, rule.match_in)
+        view = lexical_views.setdefault(rule.match_in, _lexical_view(text, rule.match_in))
         for pattern in rule.patterns:
-            try:
-                regex = re.compile(pattern)
-            except re.error as exc:
-                raise ToolkitError(f"Regex inválida na regra '{rule.rule_id}': {exc}") from exc
+            regex = _compiled_regex(pattern)
             for match in regex.finditer(view):
                 start = match.start()
-                line_number = text.count("\n", 0, start) + 1
-                line_start = text.rfind("\n", 0, start) + 1
-                column = start - line_start + 1
+                line_number, column = _position(offsets, start)
                 line_text = lines[line_number - 1].strip() if line_number <= len(lines) else ""
-                if any(re.search(false_positive, line_text) for false_positive in rule.false_positive_patterns):
+                if any(
+                    _compiled_regex(false_positive).search(line_text)
+                    for false_positive in rule.false_positive_patterns
+                ):
                     continue
                 evidences = (Evidence("lexical", f"Padrão '{pattern}' encontrado em {path.suffix or 'arquivo'}.", 0.35),)
                 detection = 0.35

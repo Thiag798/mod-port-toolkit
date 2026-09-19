@@ -137,6 +137,34 @@ const VERSION_RE = /^\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?$/;
 const LEGACY_CONDITION_RE = /^(?:(source|target)\s*)?(<=|>=|==|<|>)\s*(\d+(?:\.\d+)+)$/i;
 const DEFAULT_EXTENSIONS = ['.java', '.json', '.toml', '.properties', '.gradle', '.kts', '.yaml', '.yml', '.mcmeta', '.txt'];
 const DEFAULT_EXCLUDED = ['.git', '.gradle', 'node_modules', 'build', 'out', 'bin', 'dist', '.security-audit', 'reports'];
+const ruleCache = new Map<string, { signature: string; rules: Rule[] }>();
+const regexCache = new Map<string, RegExp>();
+
+function compiledRegex(pattern: string, flags = ''): RegExp {
+  const key = `${flags}:${pattern}`;
+  const cached = regexCache.get(key);
+  if (cached) return flags.includes('g') ? new RegExp(cached.source, cached.flags) : cached;
+  try {
+    const regex = new RegExp(pattern, flags);
+    regexCache.set(key, regex);
+    return flags.includes('g') ? new RegExp(regex.source, regex.flags) : regex;
+  } catch (error) {
+    throw new Error(`Regex inválida '${pattern}': ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function lineOffsets(text: string): number[] {
+  const offsets = [0];
+  for (let index = 0; index < text.length; index += 1) if (text[index] === '\n') offsets.push(index + 1);
+  return offsets;
+}
+
+function positionFromOffsets(offsets: number[], offset: number): { line: number; column: number } {
+  let low = 0; let high = offsets.length;
+  while (low < high) { const middle = Math.floor((low + high) / 2); if (offsets[middle] <= offset) low = middle + 1; else high = middle; }
+  const lineIndex = Math.max(0, low - 1);
+  return { line: lineIndex + 1, column: offset - offsets[lineIndex] + 1 };
+}
 
 function stringValue(value: unknown, field: string, required = false): string | undefined {
   if (value === undefined || value === null) { if (required) throw new Error(`Campo obrigatório ausente: ${field}.`); return undefined; }
@@ -259,6 +287,13 @@ export async function readRules(workspaceRoot: string, rulesRootOverride?: strin
   let files: string[];
   try { const stat = await fs.stat(ruleRoot); files = stat.isDirectory() ? await yamlFiles(ruleRoot) : [ruleRoot]; }
   catch { const legacy = path.join(workspaceRoot, 'knowledge-base', 'rules.yaml'); try { await fs.access(legacy); files = [legacy]; } catch { throw new Error(`Base de regras não encontrada em '${ruleRoot}'.`); } }
+  const signatures = await Promise.all(files.map(async (file) => {
+    const stat = await fs.stat(file);
+    return `${file}:${stat.mtimeMs}:${stat.size}`;
+  }));
+  const cacheKey = `${ruleRoot}:${signatures.join('|')}`;
+  const cached = ruleCache.get(cacheKey);
+  if (cached) return cached.rules;
   const rules: Rule[] = []; const ids = new Set<string>();
   for (const file of files) {
     let document: unknown;
@@ -273,6 +308,7 @@ export async function readRules(workspaceRoot: string, rulesRootOverride?: strin
     if (!Array.isArray(values)) throw new Error(`A raiz de '${file}' deve ser uma lista de regras.`);
     values.forEach((value, index) => { const rule = parseRule(value, index + 1, path.relative(workspaceRoot, file)); if (ids.has(rule.id)) throw new Error(`ID de regra duplicado: '${rule.id}'.`); ids.add(rule.id); rules.push(rule); });
   }
+  ruleCache.set(cacheKey, { signature: signatures.join('|'), rules });
   return rules;
 }
 
@@ -375,8 +411,15 @@ export async function loadProjectConfig(root: string, explicit?: string): Promis
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+  const allowedRoot = new Set(['source', 'target', 'analysis', 'severity', 'ignore', 'include_extensions', 'exclude_directories']);
+  const unknownRoot = Object.keys(raw).filter((key) => !allowedRoot.has(key));
+  if (unknownRoot.length) throw new Error(`Campos desconhecidos na configuração: ${unknownRoot.join(', ')}.`);
   const section = (name: string): Record<string, unknown> => { const value = raw[name]; if (value === undefined) return {}; if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`A seção '${name}' deve ser um objeto.`); return value as Record<string, unknown>; };
   const source = section('source'); const target = section('target'); const analysis = section('analysis'); const severity = section('severity');
+  for (const [name, value, allowed] of [['source', source, ['minecraft', 'loader']], ['target', target, ['minecraft', 'loader']], ['analysis', analysis, ['ast', 'dependencies']], ['severity', severity, ['fail_on']] ] as const) {
+    const unknown = Object.keys(value).filter((key) => !(allowed as readonly string[]).includes(key));
+    if (unknown.length) throw new Error(`Campos desconhecidos em '${name}': ${unknown.join(', ')}.`);
+  }
   const sourceVersion = stringValue(source.minecraft, 'source.minecraft'); const targetVersion = stringValue(target.minecraft, 'target.minecraft') || '1.21.1'; validateVersion(targetVersion, 'target.minecraft'); if (sourceVersion) validateVersion(sourceVersion, 'source.minecraft');
   const validLoader = (value: unknown, field: string): Loader | undefined => { const result = stringValue(value, field); if (result && !['forge', 'neoforge', 'fabric', 'quilt'].includes(result)) throw new Error(`'${field}' deve ser forge, neoforge, fabric ou quilt.`); return result as Loader | undefined; };
   const rawIgnore = raw.ignore ?? []; if (!Array.isArray(rawIgnore)) throw new Error("'ignore' deve ser uma lista."); const suppressions = rawIgnore.map((item, index) => { if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error(`ignore[${index + 1}] deve ser um objeto.`); const value = item as Record<string, unknown>; const rule = stringValue(value.rule, `ignore[${index + 1}].rule`, true)!; const reason = stringValue(value.reason, `ignore[${index + 1}].reason`, true)!; const line = value.line === undefined ? undefined : Number(value.line); if (line !== undefined && (!Number.isInteger(line) || line < 1)) throw new Error(`ignore[${index + 1}].line inválida.`); return { rule, file: stringValue(value.file, `ignore[${index + 1}].file`), line, reason }; });
@@ -397,11 +440,12 @@ export async function analyzeWorkspace(workspaceRoot: string, options: AnalysisO
   for (const file of selectedFiles) {
     filesByExtension[path.extname(file).toLowerCase() || '[sem extensão]'] = (filesByExtension[path.extname(file).toLowerCase() || '[sem extensão]'] || 0) + 1;
     const text = await fs.readFile(file, 'utf8'); const structure = path.extname(file).toLowerCase() === '.java' && effectiveOptions.ast !== false ? parseJava(text) : undefined; if (structure) structures.push({ file, structure });
-    const lines = text.split(/\r?\n/); const seen = new Set<string>();
+    const lines = text.split(/\r?\n/); const offsets = lineOffsets(text); const seen = new Set<string>();
+    const lexicalViews = new Map<MatchIn, string>();
     for (const rule of applicable) {
       if (path.extname(file).toLowerCase() === '.java' && rule.matchIn === 'code' && !structure && rule.requiresAst) continue;
-      const view = lexicalView(text, rule.matchIn); for (const pattern of rule.patterns) { let regex: RegExp; try { regex = new RegExp(pattern, 'g'); } catch (error) { throw new Error(`Regex inválida na regra '${rule.id}': ${error instanceof Error ? error.message : String(error)}`); }
-        let match: RegExpExecArray | null; while ((match = regex.exec(view)) !== null) { const position = lineColumn(text, match.index); const lineText = (lines[position.line - 1] || '').trim(); if (rule.falsePositivePatterns.some((item) => new RegExp(item).test(lineText))) { if (!match[0].length) regex.lastIndex += 1; continue; } const key = `${rule.id}:${position.line}:${position.column}:${match[0]}`; if (!seen.has(key)) { const evidence = evidenceFor(rule, pattern, structure, context, effectiveOptions.dependencies !== false); const overall = Math.max(0, Math.min(1, (rule.confidence ?? 0.5) * 0.55 + evidence.detection * 0.45)); const finding: Finding = { rule, file, line: position.line, column: position.column, lineText, matchedText: match[0], pattern, evidences: evidence.evidences, detectionConfidence: evidence.detection, overallConfidence: overall, suggestionObject: rule.suggestionObject, structure }; if (!suppressed(finding, workspaceRoot, effectiveOptions.suppressions || [])) findings.push(finding); seen.add(key); } if (!match[0].length) regex.lastIndex += 1; }
+      const view = lexicalViews.get(rule.matchIn) || lexicalView(text, rule.matchIn); lexicalViews.set(rule.matchIn, view); for (const pattern of rule.patterns) { const regex = compiledRegex(pattern, 'g');
+        let match: RegExpExecArray | null; while ((match = regex.exec(view)) !== null) { const position = positionFromOffsets(offsets, match.index); const lineText = (lines[position.line - 1] || '').trim(); if (rule.falsePositivePatterns.some((item) => compiledRegex(item).test(lineText))) { if (!match[0].length) regex.lastIndex += 1; continue; } const key = `${rule.id}:${position.line}:${position.column}:${match[0]}`; if (!seen.has(key)) { const evidence = evidenceFor(rule, pattern, structure, context, effectiveOptions.dependencies !== false); const overall = Math.max(0, Math.min(1, (rule.confidence ?? 0.5) * 0.55 + evidence.detection * 0.45)); const finding: Finding = { rule, file, line: position.line, column: position.column, lineText, matchedText: match[0], pattern, evidences: evidence.evidences, detectionConfidence: evidence.detection, overallConfidence: overall, suggestionObject: rule.suggestionObject, structure }; if (!suppressed(finding, workspaceRoot, effectiveOptions.suppressions || [])) findings.push(finding); seen.add(key); } if (!match[0].length) regex.lastIndex += 1; }
       }
     }
   }

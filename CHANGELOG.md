@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.1-vscode
+
+O scanner Python agora reutiliza regex compiladas, visões lexicais por arquivo e offsets de linha, reduzindo trabalho repetido sem alterar o comportamento somente leitura. A extensão TypeScript reutiliza a base YAML enquanto os arquivos não mudam, compila padrões sob demanda e localiza linhas por busca binária.
+
+A validação de configuração da extensão passou a rejeitar campos desconhecidos, mantendo paridade com o núcleo Python e evitando diagnósticos silenciosamente configurados de forma incorreta. A extensão foi versionada como `1.1.1`.
+
+Não foram adicionados Gradle, execução de builds, aplicação de patches ou qualquer mecanismo da Fase 5.
+
 ## v1.1-corrigido
 
 A versão corrigida substitui o parser YAML manual por `PyYAML` com validação de schema, aceita regras aninhadas e listas, rejeita campos desconhecidos e IDs duplicados e valida expressões regulares antes da varredura.
