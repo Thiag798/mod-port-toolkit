@@ -117,7 +117,7 @@ ignore:
     reason: "Caso analisado manualmente"
 ```
 
-Suppressions não são silenciosas: aparecem no relatório e só são criadas após ação do usuário. Um `ignore` sem `reason` é inválido.
+Suppressions não são silenciosas: aparecem no relatório e só são criadas após ação do usuário. Um `ignore` sem `reason` é inválido. O campo `file`, quando informado, deve ser o caminho relativo exato ao workspace, usando `/` como separador; o nome simples do arquivo não corresponde a arquivos em subdiretórios. O campo `line` é opcional e, quando omitido, aplica-se a todas as linhas daquele arquivo e regra.
 
 ## Limites de interpretação
 

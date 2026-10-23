@@ -255,7 +255,12 @@ def _rule_from_mapping(data: Any, index: int) -> Rule:
 
     issue = _as_string(data.get("issue"), f"rules[{index}].issue") or "Não informado."
     suggestion = _as_string(data.get("suggestion"), f"rules[{index}].suggestion") or "Não informada."
-    severity = _as_string(data.get("severity"), f"rules[{index}].severity") or "Não definida"
+    severity = _as_string(data.get("severity"), f"rules[{index}].severity") or "info"
+    if severity.casefold() not in {"info", "low", "medium", "high"}:
+        raise ToolkitError(
+            f"A regra '{rule_id}' possui severity inválida: {severity!r}. "
+            "Use info, low, medium ou high."
+        )
     applies_to = _as_string(data.get("applies_to"), f"rules[{index}].applies_to")
     if applies_to:
         _parse_legacy_conditions(applies_to)

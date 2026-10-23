@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import * as yaml from 'js-yaml';
 import {
   AnalysisOptions,
   AnalysisResult,
@@ -158,10 +159,26 @@ async function previewSuggestion(): Promise<void> {
 async function addSuppression(uri: vscode.Uri, diagnostic: vscode.Diagnostic): Promise<void> {
   const root = workspaceRoot(); if (!root || typeof diagnostic.code !== 'string') return;
   const reason = await vscode.window.showInputBox({ title: `Justificativa para ignorar ${diagnostic.code}`, prompt: 'A justificativa ficará registrada no arquivo de suppression.', validateInput: (value) => value.trim() ? undefined : 'Informe uma justificativa.' }); if (!reason) return;
-  const suppressionFile = path.join(root, '.mod-port-toolkit-ignore.yml'); const relative = path.relative(root, uri.fsPath).replaceAll(path.sep, '/'); const entry = `ignore:\n  - rule: ${diagnostic.code}\n    file: ${relative}\n    line: ${diagnostic.range.start.line + 1}\n    reason: ${JSON.stringify(reason)}\n`;
-  let current = ''; try { current = await fs.readFile(suppressionFile, 'utf8'); } catch { /* novo arquivo */ }
-  const next = current.trim() ? `${current.trimEnd()}\n  - rule: ${diagnostic.code}\n    file: ${relative}\n    line: ${diagnostic.range.start.line + 1}\n    reason: ${JSON.stringify(reason)}\n` : entry;
-  const edit = new vscode.WorkspaceEdit(); if (current) edit.replace(vscode.Uri.file(suppressionFile), new vscode.Range(0, 0, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER), next); else { edit.createFile(vscode.Uri.file(suppressionFile), { ignoreIfExists: true }); edit.insert(vscode.Uri.file(suppressionFile), new vscode.Position(0, 0), next); }
+  const suppressionFile = path.join(root, '.mod-port-toolkit-ignore.yml'); const suppressionUri = vscode.Uri.file(suppressionFile); const relative = path.relative(root, uri.fsPath).replaceAll(path.sep, '/');
+  let document: Record<string, unknown> = { ignore: [] };
+  let exists = false;
+  try {
+    const current = await fs.readFile(suppressionFile, 'utf8');
+    const parsed = yaml.load(current);
+    if (parsed !== undefined && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('a raiz deve ser um objeto YAML');
+    document = (parsed as Record<string, unknown> | undefined) || { ignore: [] };
+    if (document.ignore !== undefined && !Array.isArray(document.ignore)) throw new Error("'ignore' deve ser uma lista");
+    exists = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { vscode.window.showErrorMessage(`Mod Port Toolkit: suppression inválida — ${error instanceof Error ? error.message : String(error)}`); return; }
+  }
+  const ignore = Array.isArray(document.ignore) ? document.ignore : [];
+  ignore.push({ rule: diagnostic.code, file: relative, line: diagnostic.range.start.line + 1, reason });
+  document.ignore = ignore;
+  const next = yaml.dump(document, { lineWidth: 120 });
+  const edit = new vscode.WorkspaceEdit();
+  if (exists) { const textDocument = await vscode.workspace.openTextDocument(suppressionUri); edit.replace(suppressionUri, new vscode.Range(new vscode.Position(0, 0), textDocument.positionAt(textDocument.getText().length)), next); }
+  else { edit.createFile(suppressionUri, { ignoreIfExists: true }); edit.insert(suppressionUri, new vscode.Position(0, 0), next); }
   await vscode.workspace.applyEdit(edit); vscode.window.showInformationMessage(`Suppression registrada em ${path.basename(suppressionFile)}. Execute a análise novamente para aplicá-la.`);
 }
 class SuppressionCodeActionProvider implements vscode.CodeActionProvider {

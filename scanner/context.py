@@ -64,6 +64,25 @@ LOADER_VERSION_PATTERNS = (
     re.compile(r"(?:forge_version|neoforge_version|loader_version|fabric_loader_version|quilt_loader_version)\s*[=:]\s*['\"]?([0-9A-Za-z.+-]+)", re.I),
     re.compile(r"net\.(?:minecraftforge|neoforged):[^:]+:([0-9A-Za-z.+-]+)", re.I),
 )
+CONTEXT_EXTENSIONS = {
+    ".java", ".json", ".toml", ".properties", ".gradle", ".kts", ".yaml", ".yml",
+    ".mcmeta", ".txt", ".xml", ".cfg", ".ini", ".md",
+}
+CONTEXT_FILENAMES = {"gradlew", "gradlew.bat", "gradle-wrapper.properties", "pom.xml"}
+IGNORED_DIRECTORIES = {
+    ".git", ".gradle", ".idea", ".vscode", ".venv", "node_modules", "build", "out", "bin",
+    "dist", "reports", ".security-audit", "target",
+}
+MAX_CONTEXT_FILE_SIZE = 1_000_000
+
+
+def _is_context_file(path: Path) -> bool:
+    if path.suffix.casefold() not in CONTEXT_EXTENSIONS and path.name.casefold() not in CONTEXT_FILENAMES:
+        return False
+    try:
+        return path.stat().st_size <= MAX_CONTEXT_FILE_SIZE
+    except OSError:
+        return False
 
 
 def _project_files(source: Path) -> list[Path]:
@@ -71,8 +90,13 @@ def _project_files(source: Path) -> list[Path]:
         return [source]
     if not source.is_dir():
         return []
-    ignored = {".git", ".gradle", "node_modules", "build", "out", "bin", "dist", ".security-audit"}
-    return sorted(path for path in source.rglob("*") if path.is_file() and not ignored.intersection(path.parts))
+    return sorted(
+        path
+        for path in source.rglob("*")
+        if path.is_file()
+        and not IGNORED_DIRECTORIES.intersection(path.parts)
+        and _is_context_file(path)
+    )
 
 
 def _read_text(path: Path) -> str:

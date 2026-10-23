@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from scanner.java_ast import parse_java
-from scanner.project import load_project_config, render_workspace_report, scan_workspace
+from scanner.project import ToolkitError, git_compare, load_project_config, render_workspace_report, scan_workspace
 from scanner.scan import _fails_threshold
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +14,16 @@ RULES = ROOT / "knowledge-base" / "rules"
 
 
 class ProjectAnalysisTests(unittest.TestCase):
+    def test_ast_fallback_preserves_lines_after_multiline_comment(self) -> None:
+        source = "class Broken {\n/* comentário\n * em várias linhas\n */\nvoid method() {\n"
+        structure = parse_java(Path("Broken.java"), source)
+        self.assertEqual(structure.parser, "regex-fallback")
+        self.assertTrue(any(symbol.name == "method" and symbol.line == 5 for symbol in structure.methods))
+
+    def test_git_revisions_reject_option_injection(self) -> None:
+        with self.assertRaises(ToolkitError):
+            git_compare(ROOT, "--output=/tmp/unsafe", "HEAD")
+
     def test_ast_extracts_structural_symbols(self) -> None:
         source = (ROOT / "tests" / "PortSample.java").read_text(encoding="utf-8")
         structure = parse_java(ROOT / "tests" / "PortSample.java", source)
@@ -84,7 +94,7 @@ class ProjectAnalysisTests(unittest.TestCase):
             config_path.write_text(
                 "source:\n  minecraft: '1.20.1'\n  loader: forge\n"
                 "target:\n  minecraft: '1.21.1'\n  loader: neoforge\n"
-                "ignore:\n  - rule: model-event-change\n    file: ContextExample.java\n    line: 5\n    reason: 'Compatibilidade mantida neste fixture'\n",
+                "ignore:\n  - rule: model-event-change\n    file: src/ContextExample.java\n    line: 5\n    reason: 'Compatibilidade mantida neste fixture'\n",
                 encoding="utf-8",
             )
             config = load_project_config(FIXTURE, config_path)

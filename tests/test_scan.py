@@ -138,6 +138,13 @@ class ScannerTests(unittest.TestCase):
             with self.assertRaises(ToolkitError):
                 read_rules(path)
 
+    def test_invalid_severity_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.yaml"
+            path.write_text("rules:\n  - id: invalid-severity\n    pattern: Example\n    severity: critical\n", encoding="utf-8")
+            with self.assertRaises(ToolkitError):
+                read_rules(path)
+
     def test_context_detector_is_static_and_reports_evidence(self) -> None:
         context = detect_context(ROOT / "tests" / "context-project")
         self.assertEqual(context.loader, "neoforge")

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.2-vscode
+
+Correções derivadas da revisão completa do toolkit. Revisões Git agora rejeitam argumentos iniciados por opção ou contendo caracteres de controle; o filtro de arquivos alterados também inclui arquivos não rastreados quando não há intervalo explícito. Suppressions usam caminhos relativos exatos, sem correspondência ambígua por basename, e o editor grava o YAML por serialização estruturada.
+
+O fallback Java preserva quebras de linha ao remover comentários e captura as exceções específicas do `javalang`. A detecção de contexto passou a limitar-se a extensões textuais relevantes, arquivos pequenos e diretórios não gerados. A validação de severidade Python foi alinhada à extensão TypeScript.
+
+Foram adicionados testes para fallback, linhas, validações Git, suppressions, severidade e arquivos não rastreados. O relatório [CODE_REVIEW_2026-09-19.md](CODE_REVIEW_2026-09-19.md) documenta os achados e as correções. A Fase 5 continua excluída: não há build, Gradle, patch automático ou loop de compilação.
+
+As verificações locais também executaram `npm audit`; neste ambiente restaram vulnerabilidades transitivas em ferramentas de desenvolvimento (`brace-expansion`, `fast-uri`, `markdown-it`, `qs` e `undici`), sem dependência direta nova vulnerável. A auditoria Gitleaks, Bandit e OpenGrep depende dos executáveis instalados no ambiente; ZAP permanece não aplicável sem um alvo HTTP autorizado.
+
 ## v1.3.1-vscode
 
 O scanner Python agora reutiliza regex compiladas, visões lexicais por arquivo e offsets de linha, reduzindo trabalho repetido sem alterar o comportamento somente leitura. A extensão TypeScript reutiliza a base YAML enquanto os arquivos não mudam, compila padrões sob demanda e localiza linhas por busca binária.

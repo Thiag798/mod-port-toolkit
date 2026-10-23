@@ -6,7 +6,7 @@ Ferramenta de apoio à **migração e revisão de compatibilidade de mods do Min
 
 ## Estado do projeto
 
-A versão atual é `1.3.0-vscode`. O scanner Python e o motor TypeScript da extensão usam o mesmo contrato de regras: padrões, contexto de versão, loader, severidade, categorias, confiança, evidências, referências e modo de busca. A base inclui saltos históricos e recentes, mas sua cobertura é incremental e não deve ser interpretada como uma garantia de compatibilidade total.
+A versão atual é `1.3.2-vscode`. O scanner Python e o motor TypeScript da extensão usam o mesmo contrato de regras: padrões, contexto de versão, loader, severidade, categorias, confiança, evidências, referências e modo de busca. A base inclui saltos históricos e recentes, mas sua cobertura é incremental e não deve ser interpretada como uma garantia de compatibilidade total.
 
 | Componente | Estado | Objetivo |
 |---|---:|---|
@@ -129,7 +129,7 @@ Os subcomandos `audit`, `coverage` e `compare` aceitam `--project`, `--config`, 
 
 ## Extensão do VS Code
 
-A extensão fica em `vscode-extension/` e pode ser instalada pelo arquivo `mod-port-toolkit-vscode-1.1.0.vsix`. Ela não precisa ser publicada no Marketplace para uso local; a publicação oficial continua sendo uma etapa manual, dependente de publisher e autorização do mantenedor.
+A extensão fica em `vscode-extension/` e pode ser instalada pelo arquivo `mod-port-toolkit-vscode-1.1.1.vsix`. Ela não precisa ser publicada no Marketplace para uso local; a publicação oficial continua sendo uma etapa manual, dependente de publisher e autorização do mantenedor.
 
 Para preparar ou testar a extensão a partir do código-fonte:
 
@@ -144,7 +144,7 @@ npm run package
 O comando `npm run package` gera um VSIX local. No VS Code, abra a view **Extensions**, selecione **Views and More Actions… → Install from VSIX…** e escolha o arquivo gerado. Alternativamente, em uma instalação que disponha do comando `code`, use:
 
 ```bash
-code --install-extension /caminho/completo/mod-port-toolkit-vscode-1.1.0.vsix
+code --install-extension /caminho/completo/mod-port-toolkit-vscode-1.1.1.vsix
 ```
 
 Depois de abrir a pasta raiz do mod, execute um dos comandos na Command Palette:
@@ -158,7 +158,7 @@ Depois de abrir a pasta raiz do mod, execute um dos comandos na Command Palette:
 | `Mod Port Toolkit: Comparar commits Git` | Lista status entre dois commits/branches em modo somente leitura. |
 | `Mod Port Toolkit: Visualizar sugestão sem alterar arquivos` | Mostra before/after e segurança de uma sugestão estruturada, sem editar fontes. |
 
-A lista contém versões conhecidas e a opção **Outra versão…**, que permite informar uma versão manualmente. Os diagnósticos incluem arquivo, linha, coluna, severidade, identificador, categoria, confiança, evidências e referências. Filtros opcionais permitem severidade mínima, breaking changes e arquivos alterados. A ação de suppression exige justificativa e registra `.mod-port-toolkit-ignore.yml`; não existe Quick Fix que altere código-fonte. O relatório detalhado é salvo em `reports/`.
+A lista contém versões conhecidas e a opção **Outra versão…**, que permite informar uma versão manualmente. Os diagnósticos incluem arquivo, linha, coluna, severidade, identificador, categoria, confiança, evidências e referências. Filtros opcionais permitem severidade mínima, breaking changes e arquivos alterados; sem intervalo Git explícito, arquivos não rastreados também são considerados. A ação de suppression exige justificativa e registra `.mod-port-toolkit-ignore.yml`; o campo `file` usa o caminho relativo exato ao workspace, sem correspondência por basename. Não existe Quick Fix que altere código-fonte. O relatório detalhado é salvo em `reports/`.
 
 As configurações também podem ser escritas em `.vscode/settings.json`:
 

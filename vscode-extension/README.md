@@ -10,7 +10,7 @@ Abra a pasta raiz do mod no VS Code e execute `Mod Port Toolkit: Analisar portab
 
 `Comparar commits Git` solicita base e head e lista o resultado de `git diff --name-status`. A operação é somente leitura: não faz checkout, commit, reset, stage ou alteração no repositório. `Visualizar sugestão sem alterar arquivos` mostra antes/depois, API de substituição e nível de segurança de uma sugestão estruturada, sem criar patch nem editar fonte.
 
-A ação de código `Ignorar <regra> com justificativa` pede uma razão e registra uma suppression pontual em `.mod-port-toolkit-ignore.yml`. O arquivo é carregado na próxima análise e as suppressions são listadas no relatório. Não existe Quick Fix para alterar o código-fonte.
+A ação de código `Ignorar <regra> com justificativa` pede uma razão e registra uma suppression pontual em `.mod-port-toolkit-ignore.yml` por serialização YAML estruturada. O arquivo é carregado na próxima análise e as suppressions são listadas no relatório. O campo `file` usa o caminho relativo exato ao workspace. Não existe Quick Fix para alterar o código-fonte.
 
 As configurações podem ser escritas em `.vscode/settings.json`:
 

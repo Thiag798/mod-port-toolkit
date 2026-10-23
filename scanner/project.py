@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess  # nosec B404 - usado somente para consultas Git sem shell
+import bisect
 from functools import lru_cache
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,7 +69,6 @@ def _line_offsets(text: str) -> list[int]:
 
 
 def _position(offsets: list[int], offset: int) -> tuple[int, int]:
-    import bisect
     line_index = bisect.bisect_right(offsets, offset) - 1
     return line_index + 1, offset - offsets[line_index] + 1
 
@@ -330,7 +330,7 @@ def _suppressed(finding: Finding, root: Path, suppressions: tuple[Suppression, .
     for suppression in suppressions:
         if suppression.rule not in {"*", finding.rule.rule_id}:
             continue
-        if suppression.file and suppression.file not in {relative, finding.path.name, finding.path.as_posix()}:
+        if suppression.file and suppression.file.replace("\\", "/").lstrip("./") != relative:
             continue
         if suppression.line and suppression.line != finding.line_number:
             continue
@@ -403,13 +403,22 @@ def scan_workspace(root: Path, config: ProjectConfig | None = None, rules_path: 
     )
 
 
+GIT_REVISION_RE = re.compile(r"^[A-Za-z0-9_./~^:+@-]+$")
+
+
+def _validate_git_revision(value: str, field: str) -> str:
+    if not value or value.startswith("-") or not GIT_REVISION_RE.fullmatch(value):
+        raise ToolkitError(f"{field} contém uma revisão Git inválida ou insegura: {value!r}.")
+    return value
+
+
 def git_changed_files(root: Path, revision_range: str | None = None) -> tuple[str, ...]:
     git_executable = shutil.which("git")
     if git_executable is None:
         return ()
     command = [git_executable, "-C", str(root), "diff", "--name-only"]
     if revision_range:
-        command.append(revision_range)
+        command.append(_validate_git_revision(revision_range, "--git-range"))
     try:
         completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)  # nosec B603 - argumentos não passam por shell e a operação é diff somente leitura
     except (OSError, subprocess.SubprocessError, subprocess.CalledProcessError):
@@ -421,6 +430,8 @@ def git_compare(root: Path, base: str, head: str) -> tuple[tuple[str, str], ...]
     git_executable = shutil.which("git")
     if git_executable is None:
         raise ToolkitError("Executável Git não encontrado; compare exige um repositório Git local.")
+    base = _validate_git_revision(base, "--base")
+    head = _validate_git_revision(head, "--head")
     try:
         completed = subprocess.run(  # nosec B603 - argumentos não passam por shell e a operação é diff somente leitura
             [git_executable, "-C", str(root), "diff", "--name-status", f"{base}..{head}"],

@@ -119,13 +119,22 @@ def _line_number(text: str, offset: int) -> tuple[int, int]:
     return line, offset - start + 1
 
 
+def _blank_comments(text: str) -> str:
+    """Remove o conteúdo dos comentários sem deslocar linhas ou colunas."""
+    return re.sub(
+        r"(?s)/\*.*?\*/|//[^\n]*",
+        lambda match: "".join("\n" if character == "\n" else " " for character in match.group(0)),
+        text,
+    )
+
+
 def _fallback(path: Path, text: str) -> JavaStructure:
     imports: list[JavaSymbol] = []
     types: list[JavaSymbol] = []
     methods: list[JavaSymbol] = []
     calls: list[JavaSymbol] = []
     annotations: list[JavaSymbol] = []
-    clean = re.sub(r"(?s)/\*.*?\*/|//[^\n]*", "", text)
+    clean = _blank_comments(text)
 
     for match in re.finditer(r"\bimport\s+(?:static\s+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$*]*)*)", clean):
         line, column = _line_number(clean, match.start(1))
@@ -164,7 +173,7 @@ def parse_java(path: Path, text: str) -> JavaStructure:
     if javalang is not None:
         try:
             return _parse_with_javalang(path, text)
-        except (SyntaxError, TypeError, ValueError):
+        except (javalang.parser.JavaParserBaseException, SyntaxError, TypeError, ValueError):
             pass
     return _fallback(path, text)
 
