@@ -116,7 +116,11 @@ export interface AnalysisOptions {
   ast?: boolean;
   dependencies?: boolean;
   suppressions?: Suppression[];
+  changedFilesOnly?: boolean;
 }
+export interface AnalysisControl { isCancellationRequested: boolean; report?: (value: number, message?: string) => void; }
+export class AnalysisCancelledError extends Error { constructor() { super('Análise cancelada pelo usuário.'); this.name = 'AnalysisCancelledError'; } }
+const ANALYSIS_CACHE_SCHEMA = '1.5.0';
 export interface AnalysisResult {
   findings: Finding[];
   skippedRules: SkippedRule[];
@@ -312,7 +316,7 @@ export async function readRules(workspaceRoot: string, rulesRootOverride?: strin
   return rules;
 }
 
-async function projectFiles(root: string, config?: ProjectConfig): Promise<string[]> {
+async function projectFiles(root: string, config?: Pick<ProjectConfig, 'includeExtensions' | 'excludeDirectories'>): Promise<string[]> {
   const extensions = new Set(config?.includeExtensions || DEFAULT_EXTENSIONS); const excluded = new Set(config?.excludeDirectories || DEFAULT_EXCLUDED); const result: string[] = [];
   async function walk(current: string): Promise<void> {
     let entries; try { entries = await fs.readdir(current, { withFileTypes: true }); } catch { return; }
@@ -436,18 +440,30 @@ function validateGitRevision(value: string, field: string): string { if (!value 
 export async function gitChangedFiles(root: string, range?: string): Promise<string[]> { try { const args = ['-C', root, 'diff', '--name-only']; if (range) args.push(validateGitRevision(range, '--git-range')); const result = await execFileAsync('git', args, { timeout: 30_000 }); const changed = result.stdout.split(/\r?\n/).filter(Boolean); if (range) return [...new Set(changed)]; const untracked = await execFileAsync('git', ['-C', root, 'ls-files', '--others', '--exclude-standard'], { timeout: 30_000 }); return [...new Set([...changed, ...untracked.stdout.split(/\r?\n/).filter(Boolean)])]; } catch { return []; } }
 export async function gitCompare(root: string, base: string, head: string): Promise<Array<[string, string]>> { try { const safeBase = validateGitRevision(base, '--base'); const safeHead = validateGitRevision(head, '--head'); const result = await execFileAsync('git', ['-C', root, 'diff', '--name-status', `${safeBase}..${safeHead}`], { timeout: 30_000 }); return result.stdout.split(/\r?\n/).filter(Boolean).map((line) => { const [status, ...file] = line.split('\t'); return [status, file.join('\t')] as [string, string]; }); } catch (error) { throw new Error(`Não foi possível comparar Git: ${error instanceof Error ? error.message : String(error)}`); } }
 
-export async function analyzeWorkspace(workspaceRoot: string, options: AnalysisOptions, rulesRootOverride?: string): Promise<AnalysisResult> {
+export async function analysisSignature(workspaceRoot: string, options: AnalysisOptions, rulesRootOverride?: string): Promise<string> {
+  const config = await loadProjectConfig(workspaceRoot); const files = await projectFiles(workspaceRoot, config); const ruleFiles = await projectFiles(rulesRootOverride || path.join(workspaceRoot, 'knowledge-base'), { includeExtensions: ['.yaml', '.yml'], excludeDirectories: [] });
+  const entries: string[] = [ANALYSIS_CACHE_SCHEMA, JSON.stringify(options), JSON.stringify(config)];
+  for (const file of [...files, ...ruleFiles, path.join(workspaceRoot, '.mod-port-toolkit.yml'), path.join(workspaceRoot, '.mod-port-toolkit-ignore.yml')].sort()) { try { const stat = await fs.stat(file); entries.push(`${file}:${stat.size}:${stat.mtimeMs}`); } catch { entries.push(`${file}:missing`); } }
+  return entries.join('|');
+}
+
+export async function analyzeWorkspace(workspaceRoot: string, options: AnalysisOptions, rulesRootOverride?: string, control?: AnalysisControl): Promise<AnalysisResult> {
   validateVersion(options.targetVersion, '--target-version'); if (options.sourceVersion) validateVersion(options.sourceVersion, '--source-version');
   const config = await loadProjectConfig(workspaceRoot); const effectiveOptions: AnalysisOptions = { ...options, ast: options.ast ?? config.ast, dependencies: options.dependencies ?? config.dependencies, suppressions: options.suppressions ?? config.suppressions };
   const rules = await readRules(workspaceRoot, rulesRootOverride); const context = await detectContext(workspaceRoot); const selectedFiles = await projectFiles(workspaceRoot, config); const applicable: Rule[] = []; const skippedRules: SkippedRule[] = [];
   for (const rule of rules) { let [applies, reason] = ruleContext(rule, effectiveOptions); if (applies && rule.requiresAst && effectiveOptions.ast === false) { applies = false; reason = 'análise AST desabilitada'; } if (applies && rule.requiresDependencyCheck && effectiveOptions.dependencies === false) { applies = false; reason = 'verificação de dependências desabilitada'; } if (applies) applicable.push(rule); else skippedRules.push({ rule, reason }); }
+  const changed = effectiveOptions.changedFilesOnly ? new Set((await gitChangedFiles(workspaceRoot)).map((file) => path.resolve(workspaceRoot, file))) : undefined;
+  const filesToAnalyze = changed ? selectedFiles.filter((file) => changed.has(path.resolve(file))) : selectedFiles;
   const findings: Finding[] = []; const structures: Array<{ file: string; structure: JavaStructure }> = []; const filesByExtension: Record<string, number> = {};
-  for (const file of selectedFiles) {
+  for (const [fileIndex, file] of filesToAnalyze.entries()) {
+    if (control?.isCancellationRequested) throw new AnalysisCancelledError();
+    control?.report?.(filesToAnalyze.length ? fileIndex / filesToAnalyze.length : 1, `Analisando ${fileIndex + 1}/${filesToAnalyze.length}`);
     filesByExtension[path.extname(file).toLowerCase() || '[sem extensão]'] = (filesByExtension[path.extname(file).toLowerCase() || '[sem extensão]'] || 0) + 1;
     const text = await fs.readFile(file, 'utf8'); const structure = path.extname(file).toLowerCase() === '.java' && effectiveOptions.ast !== false ? parseJava(text) : undefined; if (structure) structures.push({ file, structure });
     const lines = text.split(/\r?\n/); const offsets = lineOffsets(text); const seen = new Set<string>();
     const lexicalViews = new Map<MatchIn, string>();
     for (const rule of applicable) {
+      if (control?.isCancellationRequested) throw new AnalysisCancelledError();
       if (path.extname(file).toLowerCase() === '.java' && rule.matchIn === 'code' && !structure && rule.requiresAst) continue;
       const view = lexicalViews.get(rule.matchIn) || lexicalView(text, rule.matchIn); lexicalViews.set(rule.matchIn, view); for (const pattern of rule.patterns) { const regex = compiledRegex(pattern, 'g');
         let match: RegExpExecArray | null; while ((match = regex.exec(view)) !== null) { const position = positionFromOffsets(offsets, match.index); const lineText = (lines[position.line - 1] || '').trim(); if (rule.falsePositivePatterns.some((item) => compiledRegex(item).test(lineText))) { if (!match[0].length) regex.lastIndex += 1; continue; } const key = `${rule.id}:${position.line}:${position.column}:${match[0]}`; if (!seen.has(key)) { const evidence = evidenceFor(rule, pattern, structure, context, effectiveOptions.dependencies !== false); const overall = Math.max(0, Math.min(1, (rule.confidence ?? 0.5) * 0.55 + evidence.detection * 0.45)); const finding: Finding = { rule, file, line: position.line, column: position.column, lineText, matchedText: match[0], pattern, evidences: evidence.evidences, detectionConfidence: evidence.detection, overallConfidence: overall, suggestionObject: rule.suggestionObject, structure }; if (!suppressed(finding, workspaceRoot, effectiveOptions.suppressions || [])) findings.push(finding); seen.add(key); } if (!match[0].length) regex.lastIndex += 1; }
@@ -455,7 +471,8 @@ export async function analyzeWorkspace(workspaceRoot: string, options: AnalysisO
     }
   }
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.column - b.column || a.rule.id.localeCompare(b.rule.id)); const severityCounts: Record<string, number> = {}; const categoryCounts: Record<string, number> = {}; for (const finding of findings) { severityCounts[finding.rule.severity] = (severityCounts[finding.rule.severity] || 0) + 1; categoryCounts[finding.rule.category] = (categoryCounts[finding.rule.category] || 0) + 1; }
-  return { findings, skippedRules, filesSeen: selectedFiles.length, rulesLoaded: rules.length, context, options: effectiveOptions, filesByExtension, severityCounts, categoryCounts, applicableRules: applicable.length, totalRules: rules.length, changedFiles: await gitChangedFiles(workspaceRoot), structures };
+  control?.report?.(1, 'Análise concluída');
+  return { findings, skippedRules, filesSeen: filesToAnalyze.length, rulesLoaded: rules.length, context, options: effectiveOptions, filesByExtension, severityCounts, categoryCounts, applicableRules: applicable.length, totalRules: rules.length, changedFiles: await gitChangedFiles(workspaceRoot), structures };
 }
 function escaped(value: string): string { return value.replace(/`/g, '\\`'); }
 export function renderMarkdown(result: AnalysisResult, workspaceRoot: string, modName: string): string {

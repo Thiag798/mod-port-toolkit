@@ -5,12 +5,15 @@ import * as yaml from 'js-yaml';
 import {
   AnalysisOptions,
   AnalysisResult,
+  AnalysisControl,
+  AnalysisCancelledError,
   Loader,
   SeverityName,
   analyzeWorkspace,
   coverageReport,
   gitCompare,
   renderMarkdown,
+  analysisSignature,
 } from './analysis';
 
 const VERSIONS = [
@@ -26,6 +29,8 @@ let diagnostics: vscode.DiagnosticCollection;
 let output: vscode.OutputChannel;
 let extensionRoot: string | undefined;
 let lastResult: AnalysisResult | undefined;
+let summaryView: SummaryViewProvider | undefined;
+let extensionContext: vscode.ExtensionContext | undefined;
 
 function workspaceRoot(): string | undefined { return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath; }
 function severityRank(value: string): number { return value === 'high' ? 3 : value === 'medium' ? 2 : value === 'low' ? 1 : 0; }
@@ -76,7 +81,17 @@ function currentOptions(): AnalysisOptions {
     targetLoader: configuration.get<Loader>('targetLoader', 'neoforge'),
     ast: configuration.get<boolean>('ast', true),
     dependencies: configuration.get<boolean>('dependencies', true),
+    changedFilesOnly: configuration.get<boolean>('changedFilesOnly', false),
   };
+}
+function cacheFile(root: string): string | undefined { return extensionContext ? path.join(extensionContext.globalStorageUri.fsPath, `${Buffer.from(root).toString('base64url')}.json`) : undefined; }
+async function cachedAnalysis(root: string, options: AnalysisOptions, rulesRoot?: string): Promise<AnalysisResult | undefined> {
+  const file = cacheFile(root); if (!file) return undefined;
+  try { const value = JSON.parse(await fs.readFile(file, 'utf8')) as { signature: string; result: AnalysisResult }; const signature = await analysisSignature(root, options, rulesRoot); return value.signature === signature ? value.result : undefined; } catch { return undefined; }
+}
+async function saveCachedAnalysis(root: string, options: AnalysisOptions, result: AnalysisResult, rulesRoot?: string): Promise<void> {
+  const file = cacheFile(root); if (!file || !extensionContext) return;
+  await fs.mkdir(extensionContext.globalStorageUri.fsPath, { recursive: true }); const signature = await analysisSignature(root, options, rulesRoot); await fs.writeFile(file, JSON.stringify({ signature, result }), 'utf8');
 }
 function filterResult(result: AnalysisResult): AnalysisResult {
   const configuration = vscode.workspace.getConfiguration('modPortToolkit');
@@ -109,6 +124,7 @@ function populateDiagnostics(result: AnalysisResult): void {
     const items = byFile.get(finding.file) || []; items.push(diagnostic); byFile.set(finding.file, items);
   }
   for (const [file, items] of byFile) diagnostics.set(vscode.Uri.file(file), items);
+  summaryView?.refresh(result);
 }
 async function saveReport(root: string, options: AnalysisOptions, result: AnalysisResult): Promise<string> {
   const reportsDirectory = path.join(root, 'reports'); await fs.mkdir(reportsDirectory, { recursive: true });
@@ -120,14 +136,20 @@ async function analyze(): Promise<void> {
   const options = await chooseOptions(); if (!options) return; await persistOptions(options);
   output.appendLine(`Analisando ${root}: ${options.sourceVersion} (${options.sourceLoader}) -> ${options.targetVersion} (${options.targetLoader})`);
   try {
-    const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Analisando portabilidade do mod', cancellable: false }, () => analyzeWorkspace(root, options, extensionRoot ? path.join(extensionRoot, 'knowledge-base', 'rules') : undefined));
+    const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Analisando portabilidade do mod', cancellable: true }, async (progress, token) => {
+      const rulesRoot = extensionRoot ? path.join(extensionRoot, 'knowledge-base', 'rules') : undefined;
+      const cached = await cachedAnalysis(root, options, rulesRoot); if (cached) { progress.report({ message: 'Resultado reutilizado do cache', increment: 100 }); return cached; }
+      let lastProgress = 0;
+      const control: AnalysisControl = { get isCancellationRequested() { return token.isCancellationRequested; }, report: (value, message) => { const next = Math.max(lastProgress, Math.min(100, value * 100)); progress.report({ increment: next - lastProgress, message }); lastProgress = next; } };
+      const result = await analyzeWorkspace(root, options, rulesRoot, control); await saveCachedAnalysis(root, options, result, rulesRoot); return result;
+    });
     lastResult = result; populateDiagnostics(result); const report = await saveReport(root, options, result);
     output.appendLine(`Arquivos: ${result.filesSeen}; regras: ${result.rulesLoaded}; achados: ${result.findings.length}; ignoradas: ${result.skippedRules.length}; relatório: ${report}`);
     const action = await vscode.window.showInformationMessage(`Análise concluída: ${result.findings.length} problema(s) em ${result.filesSeen} arquivo(s).`, 'Abrir relatório', 'Abrir Problems', 'Ver evidências');
     if (action === 'Abrir relatório') { const document = await vscode.workspace.openTextDocument(report); await vscode.window.showTextDocument(document); }
     else if (action === 'Abrir Problems') await vscode.commands.executeCommand('workbench.actions.view.problems');
     else if (action === 'Ver evidências') output.show(true);
-  } catch (error) { const message = error instanceof Error ? error.message : String(error); output.appendLine(`Erro: ${message}`); vscode.window.showErrorMessage(`Mod Port Toolkit: ${message}`); }
+  } catch (error) { if (error instanceof AnalysisCancelledError) { output.appendLine('Análise cancelada; diagnósticos anteriores foram preservados.'); vscode.window.showInformationMessage('Análise cancelada; os diagnósticos anteriores foram preservados.'); return; } const message = error instanceof Error ? error.message : String(error); output.appendLine(`Erro: ${message}`); vscode.window.showErrorMessage(`Mod Port Toolkit: ${message}`); }
 }
 async function configure(): Promise<void> { const options = await chooseOptions(); if (options) { await persistOptions(options); vscode.window.showInformationMessage(`Configuração salva: ${options.sourceVersion} (${options.sourceLoader}) -> ${options.targetVersion} (${options.targetLoader}).`); } }
 async function audit(): Promise<void> {
@@ -186,8 +208,15 @@ class SuppressionCodeActionProvider implements vscode.CodeActionProvider {
     return context.diagnostics.filter((item) => item.source === 'Mod Port Toolkit' && typeof item.code === 'string').map((item) => { const action = new vscode.CodeAction(`Ignorar ${item.code} com justificativa`, vscode.CodeActionKind.QuickFix); action.command = { title: 'Registrar suppression', command: 'modPortToolkit.suppress', arguments: [document.uri, item] }; return action; });
   }
 }
+class SummaryViewProvider implements vscode.TreeDataProvider<string> {
+  private readonly emitter = new vscode.EventEmitter<void>(); private result?: AnalysisResult;
+  readonly onDidChangeTreeData = this.emitter.event;
+  refresh(result?: AnalysisResult): void { this.result = result || this.result; this.emitter.fire(); }
+  getTreeItem(value: string): vscode.TreeItem { return new vscode.TreeItem(value); }
+  getChildren(): string[] { if (!this.result) return ['Execute uma análise para ver o resumo.']; const result = this.result; const severity = Object.entries(result.severityCounts).map(([key, value]) => `${key}: ${value}`).join(' | ') || 'nenhuma'; const categories = Object.entries(result.categoryCounts).map(([key, value]) => `${key}: ${value}`).join(' | ') || 'nenhuma'; return [`Arquivos analisados: ${result.filesSeen}`, `Achados: ${result.findings.length}`, `Severidade: ${severity}`, `Categorias: ${categories}`, `Confiança média: ${result.findings.length ? Math.round(result.findings.reduce((sum, item) => sum + item.overallConfidence, 0) / result.findings.length * 100) : 0}%`, `Regras aplicáveis: ${result.applicableRules}/${result.totalRules}`]; }
+}
 export function activate(context: vscode.ExtensionContext): void {
-  extensionRoot = context.extensionPath; diagnostics = vscode.languages.createDiagnosticCollection('mod-port-toolkit'); output = vscode.window.createOutputChannel('Mod Port Toolkit'); context.subscriptions.push(diagnostics, output);
+  extensionContext = context; extensionRoot = context.extensionPath; diagnostics = vscode.languages.createDiagnosticCollection('mod-port-toolkit'); output = vscode.window.createOutputChannel('Mod Port Toolkit'); summaryView = new SummaryViewProvider(); context.subscriptions.push(diagnostics, output, vscode.window.registerTreeDataProvider('modPortToolkit.summary', summaryView));
   context.subscriptions.push(vscode.commands.registerCommand('modPortToolkit.analyze', analyze));
   context.subscriptions.push(vscode.commands.registerCommand('modPortToolkit.audit', audit));
   context.subscriptions.push(vscode.commands.registerCommand('modPortToolkit.configure', configure));

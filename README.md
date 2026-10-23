@@ -6,7 +6,7 @@ Ferramenta de apoio à **migração e revisão de compatibilidade de mods do Min
 
 ## Estado do projeto
 
-A versão atual é `1.3.2-vscode`. O scanner Python e o motor TypeScript da extensão usam o mesmo contrato de regras: padrões, contexto de versão, loader, severidade, categorias, confiança, evidências, referências e modo de busca. A base inclui saltos históricos e recentes, mas sua cobertura é incremental e não deve ser interpretada como uma garantia de compatibilidade total.
+A versão atual é `1.5.0-vscode`. O scanner Python e o motor TypeScript da extensão usam o mesmo contrato de regras: padrões, contexto de versão, loader, severidade, categorias, confiança, evidências, referências e modo de busca. A base inclui saltos históricos e recentes, mas sua cobertura é incremental e não deve ser interpretada como uma garantia de compatibilidade total.
 
 | Componente | Estado | Objetivo |
 |---|---:|---|

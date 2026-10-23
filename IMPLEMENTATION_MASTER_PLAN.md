@@ -121,13 +121,9 @@ O limite de tamanho evita leitura de arquivos textuais excessivamente grandes. O
 
 ### 1.5 — análise incremental e experiência VS Code
 
-- Cancelamento real com `CancellationToken`.
-- Preservar diagnósticos anteriores quando uma análise for cancelada.
-- Reanalisar somente arquivos modificados.
-- Cache persistente invalidado por hash, mtime, tamanho, configuração e versão da base.
-- View dedicada com resumo por severidade, categoria, regra e confiança.
-- Ações para abrir referência, relatório e evidências.
-- Mensagens de progresso para workspaces grandes.
+Implementado nesta etapa: cancelamento real com `CancellationToken`, preservação dos diagnósticos anteriores ao cancelar, reanálise opcional somente dos arquivos alterados, cache persistente no armazenamento global da extensão invalidado por configuração, mtime, tamanho e assinatura da base, view dedicada com resumo por severidade, categoria, confiança e regras aplicáveis, e mensagens de progresso por arquivo.
+
+Pendente para a próxima tranche: ações específicas de abrir referência e evidência na view, merge de diagnósticos antigos quando o modo incremental estiver ativo, hash de conteúdo opcional para detectar alterações com mtime preservado e controles visuais para ativar o modo incremental.
 
 ### 1.6 — qualidade da base de regras
 
@@ -174,6 +170,6 @@ Uma funcionalidade só está concluída quando:
 
 ## Estado no momento desta entrega
 
-A etapa 1.4 foi concluída no código local e validada com 24 testes Python, 9 testes Node/TypeScript, compilação TypeScript, `compileall`, geração real de JSON/SARIF e `git diff --check`. A auditoria de segurança deve ser reexecutada antes do commit desta etapa. O limite de créditos é uma regra de parada: caso seja alcançado antes da conclusão de alguma etapa, a etapa deve ser marcada como pendente neste arquivo, sem tentar contorná-lo com execução adicional.
+A etapa 1.5 foi concluída e validada com 24 testes Python, 11 testes Node/TypeScript, compilação TypeScript, `compileall`, `git diff --check` e auditoria de segurança local. O limite de créditos é uma regra de parada: caso seja alcançado antes da conclusão de alguma etapa, a etapa deve ser marcada como pendente neste arquivo, sem tentar contorná-lo com execução adicional.
 
 A Fase 5 continua excluída e não será implementada.

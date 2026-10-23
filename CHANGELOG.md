@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.0-vscode
+
+Implementada a primeira etapa de análise incremental no VS Code: cancelamento por `CancellationToken`, preservação dos diagnósticos anteriores ao cancelar, progresso por arquivo, filtro de arquivos alterados, cache persistente no armazenamento global da extensão invalidado por configuração, versão das regras, tamanho e mtime dos arquivos, e view de resumo com contagens por severidade, categoria, confiança e regras aplicáveis.
+
 ## v1.4.0-vscode
 
 Primeira tranche da nova roadmap: o `audit` agora exporta Markdown, JSON estruturado e SARIF; os relatórios de máquina identificam explicitamente o modo somente leitura e a Fase 5 como excluída. A configuração passa a aceitar `analysis.max_file_size` e `analysis.max_files` para proteger workspaces grandes sem ler arquivos além dos limites definidos.

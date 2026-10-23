@@ -12,6 +12,8 @@ Abra a pasta raiz do mod no VS Code e execute `Mod Port Toolkit: Analisar portab
 
 A ação de código `Ignorar <regra> com justificativa` pede uma razão e registra uma suppression pontual em `.mod-port-toolkit-ignore.yml` por serialização YAML estruturada. O arquivo é carregado na próxima análise e as suppressions são listadas no relatório. O campo `file` usa o caminho relativo exato ao workspace. Não existe Quick Fix para alterar o código-fonte.
 
+Na versão 1.3.0, a análise exibe progresso, pode ser cancelada sem apagar os diagnósticos anteriores, reutiliza cache persistente quando a configuração e os arquivos não mudaram, permite filtrar arquivos alterados e exibe um resumo na view `Mod Port Toolkit` do Explorer. O cache fica no armazenamento global da extensão, não no projeto analisado.
+
 As configurações podem ser escritas em `.vscode/settings.json`:
 
 ```json

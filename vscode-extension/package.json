@@ -2,7 +2,7 @@
   "name": "mod-port-toolkit-vscode",
   "displayName": "Mod Port Toolkit",
   "description": "Diagnóstico estático e somente leitura de portabilidade de mods Minecraft por versão, loader e evidências revisáveis.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "mod-port-toolkit",
   "license": "MIT",
   "repository": {
@@ -160,6 +160,14 @@
         },
         {
           "command": "modPortToolkit.previewSuggestion"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "modPortToolkit.summary",
+          "name": "Mod Port Toolkit"
         }
       ]
     }

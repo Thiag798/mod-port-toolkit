@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { analyzeWorkspace, coverageReport, readRules } = require('../dist/analysis.js');
+const { analyzeWorkspace, analysisSignature, AnalysisCancelledError, coverageReport, readRules } = require('../dist/analysis.js');
 
 const root = path.resolve(__dirname, '..', '..');
 const fixture = path.join(root, 'tests', 'context-project');
@@ -76,4 +76,22 @@ test('não reporta padrões que só aparecem em comentários', async () => {
   const commandFindings = result.findings.filter((finding) => finding.rule.id === 'commands-literal-wrapper');
   assert.ok(commandFindings.length > 0);
   assert.ok(commandFindings.every((finding) => finding.lineText.includes('Commands.literal') && !finding.lineText.startsWith('//')));
+});
+
+test('cancela a análise sem produzir resultado parcial', async () => {
+  await assert.rejects(
+    analyzeWorkspace(fixture, { sourceVersion: '1.20.1', targetVersion: '1.21.1', sourceLoader: 'forge', targetLoader: 'neoforge' }, path.join(root, 'knowledge-base', 'rules'), { isCancellationRequested: true }),
+    (error) => error instanceof AnalysisCancelledError,
+  );
+});
+
+test('assinatura muda quando a configuração do workspace muda', async () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'mod-port-toolkit-signature-'));
+  fs.cpSync(fixture, temporary, { recursive: true });
+  const options = { sourceVersion: '1.20.1', targetVersion: '1.21.1', sourceLoader: 'forge', targetLoader: 'neoforge' };
+  const before = await analysisSignature(temporary, options, path.join(root, 'knowledge-base', 'rules'));
+  fs.writeFileSync(path.join(temporary, '.mod-port-toolkit.yml'), 'target:\n  minecraft: "1.21.1"\n');
+  const after = await analysisSignature(temporary, options, path.join(root, 'knowledge-base', 'rules'));
+  assert.notEqual(before, after);
+  fs.rmSync(temporary, { recursive: true, force: true });
 });
