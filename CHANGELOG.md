@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.0-vscode
+
+Primeira tranche da nova roadmap: o `audit` agora exporta Markdown, JSON estruturado e SARIF; os relatórios de máquina identificam explicitamente o modo somente leitura e a Fase 5 como excluída. A configuração passa a aceitar `analysis.max_file_size` e `analysis.max_files` para proteger workspaces grandes sem ler arquivos além dos limites definidos.
+
+Foram adicionados testes para os formatos JSON/SARIF e para os limites de workspace. A implementação continua sem execução de Gradle, compilação automática, aplicação de patches ou loop de feedback.
+
 ## v1.3.2-vscode
 
 Correções derivadas da revisão completa do toolkit. Revisões Git agora rejeitam argumentos iniciados por opção ou contendo caracteres de controle; o filtro de arquivos alterados também inclui arquivos não rastreados quando não há intervalo explícito. Suppressions usam caminhos relativos exatos, sem correspondência ambígua por basename, e o editor grava o YAML por serialização estruturada.

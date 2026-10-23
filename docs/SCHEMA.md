@@ -96,6 +96,8 @@ target:
 analysis:
   ast: true
   dependencies: true
+  max_file_size: 1000000
+  max_files: 10000
 severity:
   fail_on: high
 ignore:
@@ -106,6 +108,8 @@ ignore:
 ```
 
 `fail_on` é usado pelo subcomando `audit`: `high` falha somente para achados altos; `medium` falha para médios e altos; `low` inclui baixos; `info` inclui todos. O relatório continua sendo escrito antes do código de saída. A configuração não inicia build nem executa ferramentas do mod.
+
+`analysis.max_file_size` e `analysis.max_files` limitam, respectivamente, o tamanho de cada arquivo e a quantidade total de arquivos textuais analisados. Eles protegem workspaces grandes e não alteram nenhum arquivo.
 
 A extensão registra suppressions via ação explícita com justificativa em `.mod-port-toolkit-ignore.yml`, no formato:
 

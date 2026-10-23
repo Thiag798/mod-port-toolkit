@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess  # nosec B404 - usado somente para consultas Git sem shell
 import bisect
+import json
 from functools import lru_cache
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -93,6 +94,8 @@ class ProjectConfig:
     suppressions: tuple[Suppression, ...] = ()
     include_extensions: tuple[str, ...] = tuple(sorted(TEXT_EXTENSIONS))
     excluded_directories: tuple[str, ...] = tuple(sorted(IGNORED_DIRECTORIES))
+    max_file_size: int = 1_000_000
+    max_files: int = 10_000
 
 
 @dataclass(frozen=True)
@@ -182,7 +185,7 @@ def load_project_config(root: Path, config_path: Path | None = None) -> ProjectC
     for section, allowed in {
         "source": {"minecraft", "loader"},
         "target": {"minecraft", "loader"},
-        "analysis": {"ast", "dependencies"},
+        "analysis": {"ast", "dependencies", "max_file_size", "max_files"},
         "severity": {"fail_on"},
     }.items():
         current = _as_mapping(raw.get(section), section)
@@ -233,6 +236,11 @@ def load_project_config(root: Path, config_path: Path | None = None) -> ProjectC
     include = _as_string_list(raw.get("include_extensions"), "include_extensions") or tuple(sorted(TEXT_EXTENSIONS))
     include = tuple(ext if ext.startswith(".") else f".{ext}" for ext in include)
     excluded = _as_string_list(raw.get("exclude_directories"), "exclude_directories") or tuple(sorted(IGNORED_DIRECTORIES))
+    max_file_size = analysis.get("max_file_size", 1_000_000)
+    max_files = analysis.get("max_files", 10_000)
+    for value, name in ((max_file_size, "analysis.max_file_size"), (max_files, "analysis.max_files")):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ToolkitError(f"'{name}' deve ser um inteiro positivo.")
     return ProjectConfig(
         source_version=source_version,
         source_loader=source_loader,
@@ -244,6 +252,8 @@ def load_project_config(root: Path, config_path: Path | None = None) -> ProjectC
         suppressions=tuple(suppressions),
         include_extensions=include,
         excluded_directories=excluded,
+        max_file_size=max_file_size,
+        max_files=max_files,
     )
 
 
@@ -255,8 +265,11 @@ def project_files(root: Path, config: ProjectConfig) -> list[Path]:
     excluded = set(config.excluded_directories)
     return sorted(
         path for path in root.rglob("*")
-        if path.is_file() and path.suffix.casefold() in config.include_extensions and not excluded.intersection(path.parts)
-    )
+        if path.is_file()
+        and path.suffix.casefold() in config.include_extensions
+        and not excluded.intersection(path.parts)
+        and path.stat().st_size <= config.max_file_size
+    )[: config.max_files]
 
 
 def _read_source(path: Path) -> str:
@@ -534,8 +547,56 @@ def render_workspace_report(root: Path, result: WorkspaceResult, mod_name: str |
         "A análise é estática, não executa build, Gradle, Java do mod ou scripts do projeto, não aplica patches e não substitui revisão humana. A integração Git é somente leitura.",
         "",
     ])
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
+
+def _finding_payload(root: Path, finding: Finding) -> dict[str, Any]:
+    relative = finding.path.relative_to(root).as_posix() if finding.path.is_relative_to(root) else finding.path.as_posix()
+    return {
+        "rule": finding.rule.rule_id,
+        "file": relative,
+        "line": finding.line_number,
+        "column": finding.column,
+        "line_text": finding.line_text,
+        "matched_text": finding.matched_text,
+        "severity": finding.rule.severity,
+        "category": finding.rule.category,
+        "issue": finding.rule.issue,
+        "suggestion": finding.rule.suggestion,
+        "confidence": finding.overall_confidence,
+        "references": list(finding.rule.references),
+        "evidence": [{"kind": item.kind, "description": item.description, "weight": item.weight} for item in finding.evidences],
+    }
+
+
+def render_workspace_json(root: Path, result: WorkspaceResult) -> str:
+    payload = {
+        "schema": "mod-port-toolkit.workspace-report.v1",
+        "read_only": True,
+        "phase5": "excluded",
+        "files_seen": result.files_seen,
+        "rules_loaded": result.total_rules,
+        "applicable_rules": result.applicable_rules,
+        "known_rule_coverage": result.known_rule_coverage,
+        "changed_files": list(result.changed_files),
+        "severity_counts": result.severity_counts,
+        "category_counts": result.category_counts,
+        "findings": [_finding_payload(root, item) for item in result.findings],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def render_workspace_sarif(root: Path, result: WorkspaceResult) -> str:
+    results = []
+    for finding in result.findings:
+        payload = _finding_payload(root, finding)
+        results.append({
+            "ruleId": finding.rule.rule_id,
+            "level": {"high": "error", "medium": "warning", "low": "note", "info": "note"}.get(finding.rule.severity, "note"),
+            "message": {"text": f"{finding.rule.issue} Sugestão: {finding.rule.suggestion}"},
+            "locations": [{"physicalLocation": {"artifactLocation": {"uri": payload["file"]}, "region": {"startLine": finding.line_number, "startColumn": finding.column}}}],
+        })
+    return json.dumps({"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Mod Port Toolkit", "informationUri": "https://github.com/Thiag798/mod-port-toolkit"}}, "results": results}]}, ensure_ascii=False, indent=2) + "\n"
 
 def coverage_report(result: WorkspaceResult) -> dict[str, Any]:
     return {

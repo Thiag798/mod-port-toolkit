@@ -832,9 +832,9 @@ def _fails_threshold(result: Any, fail_on: str) -> bool:
 
 def _project_cli(argv: list[str]) -> int:
     try:
-        from scanner.project import coverage_report, git_compare, load_project_config, render_workspace_report, scan_workspace
+        from scanner.project import coverage_report, git_compare, load_project_config, render_workspace_json, render_workspace_report, render_workspace_sarif, scan_workspace
     except ModuleNotFoundError:  # execução direta: python scanner/scan.py audit
-        from project import coverage_report, git_compare, load_project_config, render_workspace_report, scan_workspace
+        from project import coverage_report, git_compare, load_project_config, render_workspace_json, render_workspace_report, render_workspace_sarif, scan_workspace
 
     command = argv[0]
     parser = argparse.ArgumentParser(prog=f"mod-port-toolkit {command}")
@@ -845,6 +845,7 @@ def _project_cli(argv: list[str]) -> int:
     parser.add_argument("--git-range", help="Intervalo Git para listar arquivos alterados, por exemplo HEAD~1..HEAD.")
     parser.add_argument("--base", help="Commit/branch base para compare.")
     parser.add_argument("--head", help="Commit/branch final para compare.")
+    parser.add_argument("--format", choices=("markdown", "json", "sarif"), default="markdown", help="Formato do relatório de audit.")
     args = parser.parse_args(argv[1:])
     root = args.project.resolve()
     if command == "compare":
@@ -866,8 +867,16 @@ def _project_cli(argv: list[str]) -> int:
         report = json.dumps(coverage_report(result), ensure_ascii=False, indent=2) + "\n"
         output = args.output or root / "reports" / "coverage.json"
     else:
-        report = render_workspace_report(root, result)
-        output = args.output or root / "reports" / "mod-port-report.md"
+        if args.format == "json":
+            report = render_workspace_json(root, result)
+            default_name = "mod-port-report.json"
+        elif args.format == "sarif":
+            report = render_workspace_sarif(root, result)
+            default_name = "mod-port-report.sarif.json"
+        else:
+            report = render_workspace_report(root, result)
+            default_name = "mod-port-report.md"
+        output = args.output or root / "reports" / default_name
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(report, encoding="utf-8")
     print(f"{command.capitalize()} concluído: {result.files_seen} arquivo(s), {len(result.findings)} ocorrência(s). Relatório: {output}")

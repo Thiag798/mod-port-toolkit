@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from scanner.java_ast import parse_java
-from scanner.project import ToolkitError, git_compare, load_project_config, render_workspace_report, scan_workspace
+from scanner.project import ToolkitError, git_compare, load_project_config, render_workspace_json, render_workspace_report, render_workspace_sarif, scan_workspace
 from scanner.scan import _fails_threshold
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,6 +127,27 @@ class ProjectAnalysisTests(unittest.TestCase):
         self.assertIn("Evidências e sugestões", report)
         self.assertIn("Cobertura conhecida", report)
         self.assertIn("não significa compatibilidade total", report)
+
+    def test_machine_reports_are_read_only_and_structured(self) -> None:
+        config = load_project_config(FIXTURE)
+        result = scan_workspace(FIXTURE, config, RULES)
+        payload = json.loads(render_workspace_json(FIXTURE, result))
+        sarif = json.loads(render_workspace_sarif(FIXTURE, result))
+        self.assertTrue(payload["read_only"])
+        self.assertEqual(payload["phase5"], "excluded")
+        self.assertIn("findings", payload)
+        self.assertEqual(sarif["version"], "2.1.0")
+
+    def test_project_limits_are_applied(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.java").write_text("class A {}", encoding="utf-8")
+            (root / "b.java").write_text("class B {}", encoding="utf-8")
+            config_path = root / ".mod-port-toolkit.yml"
+            config_path.write_text("analysis:\n  max_files: 1\n  max_file_size: 100\n", encoding="utf-8")
+            config = load_project_config(root, config_path)
+            self.assertEqual(config.max_files, 1)
+            self.assertEqual(scan_workspace(root, config, RULES).files_seen, 1)
 
 
 if __name__ == "__main__":

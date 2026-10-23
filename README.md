@@ -104,6 +104,9 @@ Para analisar código Java, recursos e arquivos de configuração em conjunto, u
 python3 scanner/scan.py audit --project /caminho/para/o/mod \
   --rules knowledge-base/rules \
   --output reports/mod-port-report.md
+python3 scanner/scan.py audit --project /caminho/para/o/mod \
+  --format sarif \
+  --output reports/mod-port-report.sarif.json
 python3 scanner/scan.py coverage --project /caminho/para/o/mod \
   --rules knowledge-base/rules \
   --output reports/coverage.json
@@ -112,7 +115,7 @@ python3 scanner/scan.py compare --project /caminho/para/o/mod \
   --output reports/git-compare.md
 ```
 
-`audit` produz evidências, confiança, categorias, regras descartadas por contexto e suppressions. `coverage` informa a proporção de regras carregadas que são aplicáveis ao contexto — não a compatibilidade do mod. `compare` lista alterações Git com `diff --name-status`, sem alterar branch, índice ou arquivos. O `audit` retorna código 1 segundo `severity.fail_on` quando há achado naquele nível ou acima, mas ainda grava o relatório.
+`audit` produz evidências, confiança, categorias, regras descartadas por contexto e suppressions. Use `--format json` para integração com outras ferramentas ou `--format sarif` para importar achados em plataformas compatíveis com SARIF. `coverage` informa a proporção de regras carregadas que são aplicáveis ao contexto — não a compatibilidade do mod. `compare` lista alterações Git com `diff --name-status`, sem alterar branch, índice ou arquivos. O `audit` retorna código 1 segundo `severity.fail_on` quando há achado naquele nível ou acima, mas ainda grava o relatório.
 
 | Parâmetro | Obrigatório | Descrição |
 |---|---:|---|
@@ -123,13 +126,24 @@ python3 scanner/scan.py compare --project /caminho/para/o/mod \
 | `--loader` | Não | Loader usado para filtrar regras: `forge`, `neoforge`, `fabric` ou `quilt`. |
 | `--detect-context` | Não | Executa detecção estática de contexto e inclui o resultado no relatório. |
 | `--output` | Não | Caminho do relatório Markdown. |
+| `--format` | Não | Formato de `audit`: `markdown`, `json` ou `sarif`. |
 | `--mod-name` | Não | Nome exibido no título do relatório. |
 
 Os subcomandos `audit`, `coverage` e `compare` aceitam `--project`, `--config`, `--rules`, `--output` e, quando aplicável, parâmetros de diff. Veja o contrato completo em [`docs/SCHEMA.md`](docs/SCHEMA.md).
 
+Para workspaces grandes, `analysis.max_file_size` limita o tamanho máximo de cada arquivo lido e `analysis.max_files` limita a quantidade de arquivos analisados. Os padrões são 1 MB e 10.000 arquivos:
+
+```yaml
+analysis:
+  ast: true
+  dependencies: true
+  max_file_size: 1000000
+  max_files: 10000
+```
+
 ## Extensão do VS Code
 
-A extensão fica em `vscode-extension/` e pode ser instalada pelo arquivo `mod-port-toolkit-vscode-1.1.1.vsix`. Ela não precisa ser publicada no Marketplace para uso local; a publicação oficial continua sendo uma etapa manual, dependente de publisher e autorização do mantenedor.
+A extensão fica em `vscode-extension/` e pode ser instalada pelo arquivo `mod-port-toolkit-vscode-1.2.0.vsix`. Ela não precisa ser publicada no Marketplace para uso local; a publicação oficial continua sendo uma etapa manual, dependente de publisher e autorização do mantenedor.
 
 Para preparar ou testar a extensão a partir do código-fonte:
 
