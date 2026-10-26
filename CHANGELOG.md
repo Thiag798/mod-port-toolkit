@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.0-vscode
+
+Adicionado o comando `rule-coverage`, que valida a base YAML, informa a completude dos metadados editoriais e identifica fixtures positivos e negativos por regra. A saída possui schema JSON próprio e declara o modo somente leitura e a exclusão da Fase 5. A análise do ODT foi registrada em `ODT_ANALYSIS_2026-10-26.md`; a ausência atual de fixtures foi mantida como lacuna explícita.
+
 ## v1.5.0-vscode
 
 Implementada a primeira etapa de análise incremental no VS Code: cancelamento por `CancellationToken`, preservação dos diagnósticos anteriores ao cancelar, progresso por arquivo, filtro de arquivos alterados, cache persistente no armazenamento global da extensão invalidado por configuração, versão das regras, tamanho e mtime dos arquivos, e view de resumo com contagens por severidade, categoria, confiança e regras aplicáveis.

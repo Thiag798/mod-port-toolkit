@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from scanner.context import detect_context
-from scanner.scan import ToolkitError, read_rules, render_report, scan
+from scanner.scan import ToolkitError, read_rules, render_report, rule_coverage_report, scan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -166,6 +166,13 @@ class ScannerTests(unittest.TestCase):
         )
         after = hashlib.sha256(FIXTURE.read_bytes()).hexdigest()
         self.assertEqual(before, after)
+
+    def test_rule_coverage_reports_metadata_and_fixture_gaps(self) -> None:
+        report = rule_coverage_report(RULES)
+        self.assertTrue(report["read_only"])
+        self.assertEqual(report["phase5"], "excluded")
+        self.assertGreater(report["total_rules"], 0)
+        self.assertEqual(len(report["rules"]), report["total_rules"])
 
 
 if __name__ == "__main__":

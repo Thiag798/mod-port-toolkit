@@ -54,6 +54,21 @@ class ProjectCliTests(unittest.TestCase):
             self.assertGreater(data["total_rules"], 0)
             self.assertGreater(data["applicable_rules"], 0)
 
+    def test_rule_coverage_writes_quality_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "rule-coverage.json"
+            completed = subprocess.run(  # nosec B603 - executa o scanner local sem shell
+                [sys.executable, str(ROOT / "scanner" / "scan.py"), "rule-coverage", "--rules", str(RULES), "--output", str(output)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            data = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(data["schema"], "mod-port-toolkit.rule-coverage.v1")
+            self.assertEqual(data["total_rules"], len(data["rules"]))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -111,6 +111,10 @@ ignore:
 
 `analysis.max_file_size` e `analysis.max_files` limitam, respectivamente, o tamanho de cada arquivo e a quantidade total de arquivos textuais analisados. Eles protegem workspaces grandes e não alteram nenhum arquivo.
 
+## Relatório `rule-coverage`
+
+`python3 scanner/scan.py rule-coverage --rules knowledge-base/rules --output reports/rule-coverage.json` produz o schema `mod-port-toolkit.rule-coverage.v1`. Cada regra informa se possui metadados editoriais completos, fixture positivo e fixture negativo. Os fixtures são procurados em um diretório configurável com `--fixtures`, usando os nomes `<rule-id>.positive.java` e `<rule-id>.negative.java`. O comando apenas lê a base e os caminhos; não executa Java, Gradle ou o mod.
+
 A extensão registra suppressions via ação explícita com justificativa em `.mod-port-toolkit-ignore.yml`, no formato:
 
 ```yaml

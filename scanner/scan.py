@@ -404,6 +404,42 @@ def read_rules(path: Path) -> list[Rule]:
     return rules
 
 
+def rule_coverage_report(rules_path: Path, fixtures_path: Path | None = None) -> dict[str, Any]:
+    """Resume metadados e fixtures existentes sem executar o código analisado."""
+    rules = read_rules(rules_path)
+    fixture_root = fixtures_path or rules_path.parent.parent / "tests" / "rules"
+    entries: list[dict[str, Any]] = []
+    for rule in rules:
+        positive = fixture_root / f"{rule.rule_id}.positive.java"
+        negative = fixture_root / f"{rule.rule_id}.negative.java"
+        missing_metadata = [
+            name for name, value in (
+                ("issue", rule.issue),
+                ("suggestion", rule.suggestion),
+                ("category", rule.category),
+                ("references", rule.references),
+            ) if not value or value == "uncategorized"
+        ]
+        entries.append({
+            "id": rule.rule_id,
+            "file": str(rules_path),
+            "positive_fixture": positive.exists(),
+            "negative_fixture": negative.exists(),
+            "metadata_complete": not missing_metadata,
+            "missing_metadata": missing_metadata,
+        })
+    return {
+        "schema": "mod-port-toolkit.rule-coverage.v1",
+        "read_only": True,
+        "phase5": "excluded",
+        "rules": entries,
+        "total_rules": len(entries),
+        "with_positive_fixture": sum(item["positive_fixture"] for item in entries),
+        "with_negative_fixture": sum(item["negative_fixture"] for item in entries),
+        "with_complete_metadata": sum(item["metadata_complete"] for item in entries),
+    }
+
+
 def _version_key(value: str) -> tuple[int, ...]:
     match = re.match(r"^(\d+(?:\.\d+)*)", value)
     if not match:
@@ -846,8 +882,17 @@ def _project_cli(argv: list[str]) -> int:
     parser.add_argument("--base", help="Commit/branch base para compare.")
     parser.add_argument("--head", help="Commit/branch final para compare.")
     parser.add_argument("--format", choices=("markdown", "json", "sarif"), default="markdown", help="Formato do relatório de audit.")
+    parser.add_argument("--fixtures", type=Path, help="Diretório com <rule-id>.positive.java e <rule-id>.negative.java.")
     args = parser.parse_args(argv[1:])
     root = args.project.resolve()
+    if command == "rule-coverage":
+        rules_path = (args.rules or DEFAULT_RULES).resolve()
+        report = rule_coverage_report(rules_path, args.fixtures.resolve() if args.fixtures else None)
+        output = args.output or root / "reports" / "rule-coverage.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"Cobertura de regras: {report['total_rules']} regra(s), {report['with_positive_fixture']} fixture(s) positivo(s), {report['with_negative_fixture']} negativo(s). Relatório: {output}")
+        return 0
     if command == "compare":
         if not args.base or not args.head:
             raise ToolkitError("compare exige --base e --head.")
@@ -888,7 +933,7 @@ def _project_cli(argv: list[str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    if argv and argv[0] in {"audit", "coverage", "compare"}:
+    if argv and argv[0] in {"audit", "coverage", "compare", "rule-coverage"}:
         try:
             return _project_cli(argv)
         except ToolkitError as exc:
