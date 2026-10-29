@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,13 +27,17 @@ class ScannerTests(unittest.TestCase):
 
     def test_scan_filters_context_and_ignores_comments(self) -> None:
         rules = read_rules(RULES)
-        result = scan(
-            ROOT / "tests",
-            rules,
-            source_version="1.12.2",
-            target_version="1.20.1",
-            loader="forge",
-        )
+        with tempfile.TemporaryDirectory() as directory:
+            fixture_root = Path(directory)
+            for name in ("Example.java", "PortSample.java"):
+                shutil.copy2(ROOT / "tests" / name, fixture_root / name)
+            result = scan(
+                fixture_root,
+                rules,
+                source_version="1.12.2",
+                target_version="1.20.1",
+                loader="forge",
+            )
         pairs = {(finding.rule.rule_id, finding.line_number) for finding in result.findings}
         self.assertEqual(
             pairs,
@@ -47,7 +52,7 @@ class ScannerTests(unittest.TestCase):
         self.assertTrue(all(finding.line_number != 4 for finding in result.findings))
         skipped = {item.rule.rule_id: item.reason for item in result.skipped_rules}
         self.assertIn("model-event-change", skipped)
-        self.assertEqual(result.files_seen, 3)
+        self.assertEqual(result.files_seen, 2)
 
     def test_version_and_loader_context_applies_model_rule(self) -> None:
         rules = read_rules(RULES)
@@ -173,6 +178,18 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(report["phase5"], "excluded")
         self.assertGreater(report["total_rules"], 0)
         self.assertEqual(len(report["rules"]), report["total_rules"])
+
+    def test_rule_tests_rejects_fixture_traversal(self) -> None:
+        from scanner.scan import rule_tests_report
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "manifest.yml").write_text(
+                "cases:\n  - rule: flattening-block-grass\n    fixture: ../outside.java\n    target_version: '1.20.1'\n    expected_findings: 0\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ToolkitError):
+                rule_tests_report(RULES, root)
 
 
 if __name__ == "__main__":

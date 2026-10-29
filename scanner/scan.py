@@ -410,8 +410,10 @@ def rule_coverage_report(rules_path: Path, fixtures_path: Path | None = None) ->
     fixture_root = fixtures_path or rules_path.parent.parent / "tests" / "rules"
     entries: list[dict[str, Any]] = []
     for rule in rules:
-        positive = fixture_root / f"{rule.rule_id}.positive.java"
-        negative = fixture_root / f"{rule.rule_id}.negative.java"
+        positive = _safe_fixture_path(fixture_root, f"{rule.rule_id}.positive.java")
+        negative = _safe_fixture_path(fixture_root, f"{rule.rule_id}.negative.java")
+        positive_present = _fixture_present(positive)
+        negative_present = _fixture_present(negative)
         missing_metadata = [
             name for name, value in (
                 ("issue", rule.issue),
@@ -423,10 +425,11 @@ def rule_coverage_report(rules_path: Path, fixtures_path: Path | None = None) ->
         entries.append({
             "id": rule.rule_id,
             "file": str(rules_path),
-            "positive_fixture": positive.exists(),
-            "negative_fixture": negative.exists(),
+            "positive_fixture": positive_present,
+            "negative_fixture": negative_present,
             "metadata_complete": not missing_metadata,
             "missing_metadata": missing_metadata,
+            "status": "complete" if not missing_metadata and positive_present and negative_present else "metadata-only" if not missing_metadata and not positive_present and not negative_present else "fixture-missing",
         })
     return {
         "schema": "mod-port-toolkit.rule-coverage.v1",
@@ -437,7 +440,75 @@ def rule_coverage_report(rules_path: Path, fixtures_path: Path | None = None) ->
         "with_positive_fixture": sum(item["positive_fixture"] for item in entries),
         "with_negative_fixture": sum(item["negative_fixture"] for item in entries),
         "with_complete_metadata": sum(item["metadata_complete"] for item in entries),
+        "complete_rules": sum(item["status"] == "complete" for item in entries),
     }
+
+
+def _safe_fixture_path(root: Path, relative: str) -> Path:
+    """Resolve um fixture somente dentro de uma raiz, sem symlink ou traversal."""
+    if not relative or Path(relative).is_absolute():
+        raise ToolkitError("O caminho do fixture deve ser relativo.")
+    candidate = (root / relative).resolve()
+    root_resolved = root.resolve()
+    try:
+        candidate.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ToolkitError("O caminho do fixture sai da raiz autorizada.") from exc
+    if any(part == ".." for part in Path(relative).parts):
+        raise ToolkitError("O caminho do fixture não pode conter '..'.")
+    return candidate
+
+
+def _fixture_present(path: Path) -> bool:
+    return path.suffix.casefold() == ".java" and not path.is_symlink() and path.is_file() and path.stat().st_size <= 1_000_000
+
+
+def rule_tests_report(rules_path: Path, fixtures_path: Path) -> dict[str, Any]:
+    """Executa contratos estáticos declarados em manifest.yml, sem executar Java."""
+    if not fixtures_path.exists() or not fixtures_path.is_dir() or fixtures_path.is_symlink():
+        raise ToolkitError(f"Diretório de fixtures inválido: {fixtures_path}")
+    manifest_path = _safe_fixture_path(fixtures_path, "manifest.yml")
+    try:
+        raw = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ToolkitError(f"Não foi possível ler o manifesto de fixtures: {exc}") from exc
+    except yaml.YAMLError as exc:
+        raise ToolkitError(f"YAML inválido no manifesto de fixtures: {exc}") from exc
+    if not isinstance(raw, dict) or set(raw) != {"cases"} or not isinstance(raw["cases"], list):
+        raise ToolkitError("O manifesto de fixtures deve conter somente 'cases' como lista.")
+    if len(raw["cases"]) > 500:
+        raise ToolkitError("O manifesto de fixtures excede o limite de 500 casos.")
+    rules = read_rules(rules_path)
+    by_id = {rule.rule_id: rule for rule in rules}
+    results: list[dict[str, Any]] = []
+    for index, case in enumerate(raw["cases"], start=1):
+        if not isinstance(case, dict):
+            raise ToolkitError(f"O caso #{index} deve ser um objeto.")
+        allowed = {"rule", "fixture", "source_version", "target_version", "loader", "expected_findings", "expected_severity"}
+        unknown = set(case) - allowed
+        if unknown:
+            raise ToolkitError(f"Campos desconhecidos no caso #{index}: {', '.join(sorted(unknown))}.")
+        rule_id = _as_string(case.get("rule"), f"cases[{index}].rule", required=True)
+        fixture_name = _as_string(case.get("fixture"), f"cases[{index}].fixture", required=True)
+        if rule_id not in by_id:
+            raise ToolkitError(f"O caso #{index} referencia regra inexistente: {rule_id}.")
+        fixture = _safe_fixture_path(fixtures_path, fixture_name)
+        if fixture.suffix.casefold() != ".java" or fixture.is_symlink() or not fixture.is_file():
+            raise ToolkitError(f"Fixture Java inválido no caso #{index}: {fixture_name}.")
+        if fixture.stat().st_size > 1_000_000:
+            raise ToolkitError(f"Fixture excede 1 MB no caso #{index}: {fixture_name}.")
+        expected = case.get("expected_findings")
+        if isinstance(expected, bool) or not isinstance(expected, int) or expected < 0 or expected > 100:
+            raise ToolkitError(f"cases[{index}].expected_findings deve ser inteiro entre 0 e 100.")
+        target_version = _as_string(case.get("target_version"), f"cases[{index}].target_version", required=True)
+        source_version = _as_string(case.get("source_version"), f"cases[{index}].source_version")
+        loader = _as_string(case.get("loader"), f"cases[{index}].loader")
+        result = scan(fixture, [by_id[rule_id]], source_version=source_version, target_version=target_version, loader=loader)
+        findings = [item for item in result.findings if item.rule.rule_id == rule_id]
+        expected_severity = _as_string(case.get("expected_severity"), f"cases[{index}].expected_severity")
+        passed = len(findings) == expected and (expected_severity is None or all(item.rule.severity == expected_severity for item in findings))
+        results.append({"case": index, "rule": rule_id, "fixture": fixture_name, "expected_findings": expected, "actual_findings": len(findings), "passed": passed})
+    return {"schema": "mod-port-toolkit.rule-tests.v1", "read_only": True, "phase5": "excluded", "cases": results, "total_cases": len(results), "passed_cases": sum(item["passed"] for item in results), "failed_cases": sum(not item["passed"] for item in results)}
 
 
 def _version_key(value: str) -> tuple[int, ...]:
@@ -893,6 +964,15 @@ def _project_cli(argv: list[str]) -> int:
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"Cobertura de regras: {report['total_rules']} regra(s), {report['with_positive_fixture']} fixture(s) positivo(s), {report['with_negative_fixture']} negativo(s). Relatório: {output}")
         return 0
+    if command == "rule-tests":
+        if not args.fixtures:
+            raise ToolkitError("rule-tests exige --fixtures.")
+        report = rule_tests_report((args.rules or DEFAULT_RULES).resolve(), args.fixtures.resolve())
+        output = args.output or root / "reports" / "rule-tests.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"Contratos de regras: {report['passed_cases']}/{report['total_cases']} aprovados. Relatório: {output}")
+        return 1 if report["failed_cases"] else 0
     if command == "compare":
         if not args.base or not args.head:
             raise ToolkitError("compare exige --base e --head.")
@@ -933,7 +1013,7 @@ def _project_cli(argv: list[str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    if argv and argv[0] in {"audit", "coverage", "compare", "rule-coverage"}:
+    if argv and argv[0] in {"audit", "coverage", "compare", "rule-coverage", "rule-tests"}:
         try:
             return _project_cli(argv)
         except ToolkitError as exc:

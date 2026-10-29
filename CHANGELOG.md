@@ -2,7 +2,7 @@
 
 ## v1.6.0-vscode
 
-Adicionado o comando `rule-coverage`, que valida a base YAML, informa a completude dos metadados editoriais e identifica fixtures positivos e negativos por regra. A saída possui schema JSON próprio e declara o modo somente leitura e a exclusão da Fase 5. A análise do ODT foi registrada em `ODT_ANALYSIS_2026-10-26.md`; a ausência atual de fixtures foi mantida como lacuna explícita.
+Adicionados os comandos `rule-coverage` e `rule-tests`. A base YAML agora informa a completude dos metadados e os contratos estáticos comparam achados esperados em fixtures Java locais. Foram incluídos seis fixtures representativos para três regras, com 6/6 contratos aprovados. O executor rejeita traversal, symlinks, arquivos grandes e manifestos excessivos, declara o modo somente leitura e mantém a Fase 5 excluída. As 23 regras restantes ainda precisam de fixtures; a análise do ODT está registrada em `ODT_ANALYSIS_2026-10-26.md`.
 
 ## v1.5.0-vscode
 

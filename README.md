@@ -115,6 +115,8 @@ python3 scanner/scan.py compare --project /caminho/para/o/mod \
   --output reports/git-compare.md
 python3 scanner/scan.py rule-coverage --rules knowledge-base/rules \
   --output reports/rule-coverage.json
+python3 scanner/scan.py rule-tests --rules knowledge-base/rules \
+  --fixtures tests/rules --output reports/rule-tests.json
 ```
 
 `audit` produz evidências, confiança, categorias, regras descartadas por contexto e suppressions. Use `--format json` para integração com outras ferramentas ou `--format sarif` para importar achados em plataformas compatíveis com SARIF. `coverage` informa a proporção de regras carregadas que são aplicáveis ao contexto — não a compatibilidade do mod. `compare` lista alterações Git com `diff --name-status`, sem alterar branch, índice ou arquivos. O `audit` retorna código 1 segundo `severity.fail_on` quando há achado naquele nível ou acima, mas ainda grava o relatório.
@@ -134,6 +136,8 @@ python3 scanner/scan.py rule-coverage --rules knowledge-base/rules \
 Os subcomandos `audit`, `coverage` e `compare` aceitam `--project`, `--config`, `--rules`, `--output` e, quando aplicável, parâmetros de diff. Veja o contrato completo em [`docs/SCHEMA.md`](docs/SCHEMA.md).
 
 O subcomando `rule-coverage` valida a base YAML e informa, sem executar o mod, quantas regras têm metadados completos e quantas possuem fixtures convencionados em `<rule-id>.positive.java` e `<rule-id>.negative.java`. Ausência de fixture aparece como lacuna explícita no JSON.
+
+O subcomando `rule-tests` executa contratos estáticos declarados em `tests/rules/manifest.yml`. Ele compara a quantidade de achados e, quando informado, a severidade esperada. Os arquivos Java são somente lidos pelo scanner; não são compilados nem executados.
 
 Para workspaces grandes, `analysis.max_file_size` limita o tamanho máximo de cada arquivo lido e `analysis.max_files` limita a quantidade de arquivos analisados. Os padrões são 1 MB e 10.000 arquivos:
 

@@ -115,6 +115,8 @@ ignore:
 
 `python3 scanner/scan.py rule-coverage --rules knowledge-base/rules --output reports/rule-coverage.json` produz o schema `mod-port-toolkit.rule-coverage.v1`. Cada regra informa se possui metadados editoriais completos, fixture positivo e fixture negativo. Os fixtures são procurados em um diretório configurável com `--fixtures`, usando os nomes `<rule-id>.positive.java` e `<rule-id>.negative.java`. O comando apenas lê a base e os caminhos; não executa Java, Gradle ou o mod.
 
+`python3 scanner/scan.py rule-tests --rules knowledge-base/rules --fixtures tests/rules --output reports/rule-tests.json` produz o schema `mod-port-toolkit.rule-tests.v1`. O diretório precisa conter `manifest.yml` com uma lista `cases`; cada caso declara `rule`, `fixture`, `target_version`, `expected_findings` e, opcionalmente, `source_version`, `loader` e `expected_severity`. O executor rejeita caminhos absolutos, `..`, symlinks, arquivos não Java, arquivos acima de 1 MB e mais de 500 casos. Um caso falho gera relatório e código de saída não zero.
+
 A extensão registra suppressions via ação explícita com justificativa em `.mod-port-toolkit-ignore.yml`, no formato:
 
 ```yaml

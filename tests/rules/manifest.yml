@@ -1,0 +1,40 @@
+cases:
+  - rule: flattening-block-grass
+    fixture: flattening-block-grass.positive.java
+    source_version: "1.12.2"
+    target_version: "1.20.1"
+    loader: forge
+    expected_findings: 1
+    expected_severity: high
+  - rule: flattening-block-grass
+    fixture: flattening-block-grass.negative.java
+    source_version: "1.12.2"
+    target_version: "1.20.1"
+    loader: forge
+    expected_findings: 0
+  - rule: commands-literal-wrapper
+    fixture: commands-literal-wrapper.positive.java
+    source_version: "1.20.1"
+    target_version: "1.20.1"
+    loader: forge
+    expected_findings: 1
+    expected_severity: medium
+  - rule: commands-literal-wrapper
+    fixture: commands-literal-wrapper.negative.java
+    source_version: "1.20.1"
+    target_version: "1.20.1"
+    loader: forge
+    expected_findings: 0
+  - rule: model-event-change
+    fixture: model-event-change.positive.java
+    source_version: "1.20.1"
+    target_version: "1.21.1"
+    loader: neoforge
+    expected_findings: 2
+    expected_severity: high
+  - rule: model-event-change
+    fixture: model-event-change.negative.java
+    source_version: "1.20.1"
+    target_version: "1.21.1"
+    loader: neoforge
+    expected_findings: 0

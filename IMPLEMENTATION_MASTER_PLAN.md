@@ -127,9 +127,9 @@ Pendente para a próxima tranche: ações específicas de abrir referência e ev
 
 ### 1.6 — qualidade da base de regras
 
-Implementado nesta etapa: comando `rule-coverage` com schema JSON próprio, validação dos metadados editoriais, identificação de fixtures positivos e negativos convencionados, indicação explícita de somente leitura e exclusão da Fase 5, além da análise documentada do ODT em `ODT_ANALYSIS_2026-10-26.md`.
+Implementado nesta etapa: comando `rule-coverage` com schema JSON próprio, validação dos metadados editoriais, identificação de fixtures positivos e negativos convencionados, executor `rule-tests` com manifesto YAML e contratos de achados, seis fixtures representativos para três regras, validações contra traversal, symlinks, arquivos grandes e número excessivo de casos, indicação explícita de somente leitura e exclusão da Fase 5, além da análise documentada do ODT em `ODT_ANALYSIS_2026-10-26.md`.
 
-Resultado atual: 26 regras carregadas, 26 com metadados completos, 0 fixtures positivos e 0 fixtures negativos. A lacuna foi reportada honestamente e não foram fabricados fixtures apenas para elevar a métrica.
+Resultado atual: 26 regras carregadas, 26 com metadados completos, 3 fixtures positivos e 3 negativos, com 6/6 contratos estáticos aprovados. As 23 regras restantes ainda não possuem fixtures; essa lacuna foi reportada honestamente e não foram fabricados testes apenas para elevar a métrica.
 
 Pendente: fixtures positivos e negativos para cada regra, casos específicos para comentários, strings, loader e intervalo de versões, catálogo de referências oficiais, comparação de regras entre saltos e relatório de paridade entre os motores.
 
@@ -169,7 +169,7 @@ Uma funcionalidade só está concluída quando:
 
 ## Estado no momento desta entrega
 
-A etapa 1.6 foi implementada parcialmente e validada com 26 testes Python, 11 testes Node/TypeScript, compilação TypeScript, `compileall`, `git diff --check`, execução real do `rule-coverage` e auditoria de segurança local. O relatório encontrou 26 regras com metadados completos, mas 0 fixtures positivos e 0 negativos; essa lacuna permanece pendente. O ODT analisado está resumido em `ODT_ANALYSIS_2026-10-26.md`.
+A etapa 1.6 foi implementada parcialmente e validada com 28 testes Python, 11 testes Node/TypeScript, compilação TypeScript, `compileall`, `git diff --check`, execução real do `rule-coverage` e `rule-tests` com 6/6 contratos aprovados, e auditoria de segurança local. O relatório encontrou 26 regras com metadados completos, 3 fixtures positivos e 3 negativos; as 23 regras restantes ainda precisam de fixtures. O ODT analisado está resumido em `ODT_ANALYSIS_2026-10-26.md`.
 
 O `npm audit` local reportou 7 vulnerabilidades transitivas: 6 altas e 1 moderada. Nenhuma atualização automática foi aplicada. Gitleaks, Bandit e OpenGrep estavam ausentes no ambiente; ZAP foi pulado por não existir alvo HTTP autorizado.
 

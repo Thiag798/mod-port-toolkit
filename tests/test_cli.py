@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "context-project"
 RULES = ROOT / "knowledge-base" / "rules"
+RULE_FIXTURES = ROOT / "tests" / "rules"
 
 
 class ProjectCliTests(unittest.TestCase):
@@ -68,6 +69,21 @@ class ProjectCliTests(unittest.TestCase):
             data = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(data["schema"], "mod-port-toolkit.rule-coverage.v1")
             self.assertEqual(data["total_rules"], len(data["rules"]))
+
+    def test_rule_tests_writes_contract_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "rule-tests.json"
+            completed = subprocess.run(  # nosec B603 - executa o scanner local sem shell
+                [sys.executable, str(ROOT / "scanner" / "scan.py"), "rule-tests", "--rules", str(RULES), "--fixtures", str(RULE_FIXTURES), "--output", str(output)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            data = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(data["schema"], "mod-port-toolkit.rule-tests.v1")
+            self.assertEqual(data["failed_cases"], 0)
 
 
 if __name__ == "__main__":
